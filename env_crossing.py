@@ -26,16 +26,16 @@ class Agent:
                 continue
             if self.is_p0_min == 1:
                 if self.platoons[i].status == -1:               # status=-1的车队减速
-                    self.platoons[i].a[0] = -2
-                    next_a[i] = -2
+                    self.platoons[i].a[0] = config.A_STATUS
+                    next_a[i] = config.A_STATUS
                 else:
                     self.platoons[i].a[0] = action[i]           # 否则按照action行动
                     next_a[i] = action[i]
 
             else:
                 if self.platoons[i].status == -1:
-                    self.platoons[i].a[0] = -2
-                    next_a[i] = -2
+                    self.platoons[i].a[0] = config.A_STATUS
+                    next_a[i] = config.A_STATUS
                 else:
                     self.platoons[i].a[0] = action[1 - i]
                     next_a[i] = action[1 - i]
@@ -179,6 +179,7 @@ class Crossing(tk.Tk, object):
         flag = np.zeros(self.platoons_num)          # 指示车队是否自由，如果车队i加入了某个Agent则flag[i] = 1,否则为0
         in_region_index = []                        # 指示哪些车队在控制区内
         free_index = []                             # 指示哪些车队没有加入Agent（自由行驶）
+        new_agents = 0
 
         # 计算进入控制区域的车队
         for i in range(self.platoons_num):
@@ -203,6 +204,7 @@ class Crossing(tk.Tk, object):
                     new_a = Agent(self.agent_num, [self.platoons[index1], self.platoons[index2]])
                     self.agents.append(new_a)
                     self.agent_num += 1
+                    new_agents += 1
                     flag[index1] = 1
                     flag[index2] = 1
 
@@ -218,19 +220,55 @@ class Crossing(tk.Tk, object):
                 p1.status = 1
             elif p0.status == 0 and p1.status != 0:
                 a1 = p1.a[0]
-                if (p0_min_time - p1_min_time) * a1 > 0:        # 如果此条件满足，意味着p1先到达冲突区域并且正在采取加速，或者
-                                                                # 后到达冲突区域并且正在减速，此时p0和p1可以按照正常强化学习策
-                                                                # 略进行控制，所以p0.status设为1
-                    p0.status = 1
-                else:                                           # 否则意味着p0和p1如果按照强化学习策略进行控制，会和其他Agent
-                                                                # 冲突，所以此时p0被限制只能减速，status设为-1
-                    p0.status = -1
+                if a1 != 0:
+                    if (p0_min_time - p1_min_time) * a1 > 0:        # 如果此条件满足，意味着p1先到达冲突区域并且正在采取加速，或者
+                                                                    # 后到达冲突区域并且正在减速，此时p0和p1可以按照正常强化学习策
+                                                                    # 略进行控制，所以p0.status设为1
+                        p0.status = 1
+                    else:                                           # 否则意味着p0和p1如果按照强化学习策略进行控制，会和其他Agent
+                                                                    # 冲突，所以此时p0被限制只能减速，status设为-1
+                        p0.status = -1
+                else:                                               # 若a1 == 0说明同时增加了两个agents，需要考虑上一个的情况
+                    p2 = self.agents[i - 1].platoons[0]
+                    p1_last = self.agents[i - 1].platoons[1]
+                    if p1_last.id != p1.id:
+                        temp = p2
+                        p2 = p1_last
+                        p1_last = temp
+                    p2_min_time, p2_max_time, p2_next_v, p1_l_min_time, p1_l_max_time, \
+                    p1_l_next_v, collision_time_last = cal_time(p2, p1_last)
+
+                    if (p0_min_time - p1_min_time) * (p2_min_time - p1_l_min_time) > 0:
+                                                                    # 如果此条件满足，意味着p1先到达冲突区域并且正在采取加速，或者
+                                                                    # 后到达冲突区域并且正在减速，此时p0和p1可以按照正常强化学习策
+                                                                    # 略进行控制，所以p0.status设为1
+                        p0.status = 1
+                    else:                                           # 否则意味着p0和p1如果按照强化学习策略进行控制，会和其他Agent
+                                                                    # 冲突，所以此时p0被限制只能减速，status设为-1
+                        p0.status = -1
+
             elif p0.status != 0 and p1.status == 0:
                 a0 = p0.a[0]
-                if (p1_min_time - p0_min_time) * a0 > 0:
-                    p1.status = 1
+                if a0 != 0:
+                    if (p1_min_time - p0_min_time) * a0 > 0:
+                        p1.status = 1
+                    else:
+                        p1.status = -1
                 else:
-                    p1.status = -1
+                    p0_last = self.agents[i - 1].platoons[0]
+                    p2 = self.agents[i - 1].platoons[1]
+                    if p0_last.id != p0.id:
+                        temp = p0_last
+                        p0_last = p2
+                        p2 = temp
+                    p0_l_min_time, p0_l_max_time, p0_l_next_v, p2_min_time, p2_max_time, \
+                    p2_next_v, collision_time_last = cal_time(p0_last, p2)
+
+                    if (p1_min_time - p0_min_time) * (p2_min_time - p0_l_min_time) > 0:
+                        p1.status = 1
+                    else:
+                        p1.status = -1
+
             elif p0.status == -1 and p1.status == 1:
                 if p1_min_time < 0:                             # 当某一个车队status为-1时，如果对方已经到达冲突区域，认为已
                                                                 # 经比较安全，可以取消限制
@@ -239,6 +277,11 @@ class Crossing(tk.Tk, object):
                 if p0_min_time < 0:
                     p1.status = 1
 
+        # if new_agents == 2:
+        #     self.platoons[1].status = 1
+        #     self.platoons[2].status = 1
+        #     self.platoons[1].taken_action = self.agents[1].id
+
         # 计算free platoons
         for i in range(self.platoons_num):
             if flag[i] == 0:
@@ -246,9 +289,11 @@ class Crossing(tk.Tk, object):
                 self.free_plts.append(self.platoons[i])
                 self.free_plts_num += 1
 
-        # print(self.agent_index)
-        # print(free_index)
-        # print('**************')
+        print(self.agent_index)
+        print(new_agents)
+        for i in range(self.platoons_num):
+            print(self.platoons[i].status)
+        print('**************')
 
 
 # calculate time for straight and straight
@@ -289,11 +334,11 @@ def cal_time_ss(p0, p1):
         ud_flag = -1
 
     # calculate reward
-    min_d_lr = lr_flag * (col[0] - lr_leader_co[0]) # min distance (to collision area) of p_lr, 即p_lr的头车车头到冲突区域对应边缘的距离
+    min_d_lr = lr_flag * (col[0] - lr_leader_co[0]) - config.CAR_LEN # min distance (to collision area) of p_lr, 即p_lr的头车车头到冲突区域对应边缘的距离
                                                     # 下面的变量类似
-    max_d_lr = lr_flag * (col[0] - lr_tail_co[0])
-    min_d_ud = ud_flag * (col[1] - ud_leader_co[1])
-    max_d_ud = ud_flag * (col[1] - ud_tail_co[1])
+    max_d_lr = lr_flag * (col[0] - lr_tail_co[0]) + config.CAR_LEN
+    min_d_ud = ud_flag * (col[1] - ud_leader_co[1]) - config.CAR_LEN
+    max_d_ud = ud_flag * (col[1] - ud_tail_co[1]) + config.CAR_LEN
 
     lr_min_time = min_d_lr / (lr_next_v + 0.1)      # min time (to collision area) of p_lr, p_lr到达冲突区的最短时间，下面的变量类似
     lr_min_time = min(lr_min_time, 40)

@@ -36,22 +36,25 @@ if __name__ == "__main__":
     train = False                       # false代表调用已经训练好的模型，true代表训练并将模型保存在Data文件夹下
                                         # 由于目前的环境已经不是训练的环境了，所以这里不要改成true
     a = np.zeros(5)
-    v = np.array([10, 10, 10, 10, 10])
+    a1 = np.zeros(5)
+    v = 10*np.ones(5)
+    v1 = 10*np.ones(5)
     v2 = v + 3
 
-    x0 = np.array([80, 64, 50, 35, 20])
-    y0 = x1 = np.ones(5) * (config.CANVAS_E / 2 + 1.5*config.LANE_WIDTH)
+    x0 = np.array([80, 64, 50, 35, 20]) + 10
+    y0 = np.ones(5) * (config.CANVAS_E / 2 + 1.5*config.LANE_WIDTH)
+    x1 = np.ones(5) * (config.CANVAS_E / 2 + 1.5 * config.LANE_WIDTH)
     x2 = np.array([20, 35, 50, 62, 76]) + config.right_side + config.START_DIS
     y2 = np.ones(5) * (config.CANVAS_E / 2 - 1.5*config.LANE_WIDTH)
 
-    y1 = np.array([30, 45, 59, 74, 89]) + np.ones(5) * (config.right_side + config.START_DIS)
+    y1 = np.array([30, 45, 59, 74, 89]) + config.right_side + config.START_DIS + 10
     p0 = car.Platoon(0, x0, y0, v, a, config.Direction.RIGHT, config.Direction.RIGHT)
-    p1 = car.Platoon(1, x1, y1, v, a, config.Direction.UP, config.Direction.UP)
+    p1 = car.Platoon(1, x1, y1, v1, a1, config.Direction.UP, config.Direction.UP)
     p2 = car.Platoon(2, x2, y2, v, a, config.Direction.LEFT, config.Direction.LEFT)
 
     p3 = car.Platoon(3, y2, x0, v, a, config.Direction.DOWN, config.Direction.RIGHT)
 
-    env = Crossing([p0, p1, p3])
+    env = Crossing([p0, p1, p2])
     ddpg = DDPG(config.A_DIM, config.S_DIM, [config.A_MIN, config.A_MAX], train)
 
     env.after(100, eval)
