@@ -3,7 +3,7 @@ import tkinter as tk
 import numpy as np
 import config
 import car
-
+import random
 
 class Agent:
     def __init__(self, id, plt):
@@ -25,7 +25,7 @@ class Agent:
                 # 如果已经采取措施并且采取的措施不是跟随着本Agent的，那么跳过
                 continue
             if self.is_p0_min == 1:
-                if self.platoons[i].status == -1:               # status=-1的车队减速
+                if self.platoons[i].status == -2:               # status=-2的车队被迫减速
                     self.platoons[i].a[0] = config.A_STATUS
                     next_a[i] = config.A_STATUS
                 else:
@@ -33,7 +33,7 @@ class Agent:
                     next_a[i] = action[i]
 
             else:
-                if self.platoons[i].status == -1:
+                if self.platoons[i].status == -2:
                     self.platoons[i].a[0] = config.A_STATUS
                     next_a[i] = config.A_STATUS
                 else:
@@ -86,14 +86,11 @@ class Crossing(tk.Tk, object):
         super(Crossing, self).__init__()
         self.title('Crossing')
         self.geometry('{0}x{1}'.format(config.CANVAS_E, config.CANVAS_E))
-        self.platoons_num = len(platoons)
         self.platoons = platoons
         self.platoons_show = []
 
-        self.agent_num = 0
         self.agents = []
         self.agent_index = []
-        self.free_plts_num = 0
         self.free_plts = []
 
         self._build_()
@@ -133,9 +130,9 @@ class Crossing(tk.Tk, object):
         self.canvas.create_line(x0, y0, x1, y1, fill='orange')
         self.canvas.create_line(y0, x0, y1, x1, fill='orange')
 
-        for i in range(self.platoons_num):
+        for i in range(len(self.platoons)):
             platoon_show = []
-            for j in range(self.platoons[i].num):
+            for j in range(self.platoons[i].get_num()):
                 x = self.platoons[i].x[j]
                 y = self.platoons[i].y[j]
                 platoon_show.append(self.canvas.create_rectangle(x, y, x + config.CAR_LEN, y + config.CAR_WIDTH))
@@ -144,14 +141,26 @@ class Crossing(tk.Tk, object):
         # pack all
         self.canvas.pack()
 
+    def create(self):
+        if random.random() < 0.3*config.DT*np.exp(-0.3*config.DT):
+            p_new = car.Platoon(len(self.platoons), np.array([1]), np.array([config.CANVAS_E / 2 + 1.5*config.LANE_WIDTH]),
+                                np.array([10]), np.array([0]), config.Direction.RIGHT, config.Direction.RIGHT)
+            self.platoons.append(p_new)
+            platoon_show = []
+            for j in range(p_new.get_num()):
+                x = p_new.x[j]
+                y = p_new.y[j]
+                platoon_show.append(self.canvas.create_rectangle(x, y, x + config.CAR_LEN, y + config.CAR_WIDTH))
+            self.platoons_show.append(platoon_show)
+
     def step(self, action):
         done = True                             # 表示整个场景的仿真是否完成
-        for i in range(self.agent_num):
+        for i in range(len(self.agents)):
             di = self.agents[i].step(action[i])
             if not di:                          # 只要有一个Agent的done不是true,就认为整个场景的仿真没有完成
                 done = False
 
-        for i in range(self.free_plts_num):
+        for i in range(len(self.free_plts)):
             self.free_plts[i].a[0] = 0
             # update
             self.free_plts[i].update()
@@ -159,8 +168,8 @@ class Crossing(tk.Tk, object):
                 done = False
 
         # 界面上的“方形”相应移动
-        for i in range(self.platoons_num):
-            for j in range(self.platoons[i].num):
+        for i in range(len(self.platoons)):
+            for j in range(self.platoons[i].get_num()):
                 coords = self.canvas.coords(self.platoons_show[i][j])
                 dx_int = round(self.platoons[i].x[j] - coords[0])
                 dy_int = round(self.platoons[i].y[j] - coords[1])
@@ -173,16 +182,26 @@ class Crossing(tk.Tk, object):
         self.update()
 
     def cal_agent_free(self):                       # calculate agent and free platoons
-        self.free_plts_num = 0
         self.free_plts = []
 
-        flag = np.zeros(self.platoons_num)          # 指示车队是否自由，如果车队i加入了某个Agent则flag[i] = 1,否则为0
         in_region_index = []                        # 指示哪些车队在控制区内
         free_index = []                             # 指示哪些车队没有加入Agent（自由行驶）
-        new_agents = 0
+
+        # 删除done=True的Agents
+        i = 0
+        while i < len(self.agents):
+            if self.agents[i].done:
+                self.agents[i].platoons[0].free = True
+                self.agents[i].platoons[1].free = True
+                self.agents[i].platoons[0].taken_action = -1
+                self.agents[i].platoons[1].taken_action = -1
+                del self.agent_index[i]
+                del self.agents[i]
+                continue
+            i = i + 1
 
         # 计算进入控制区域的车队
-        for i in range(self.platoons_num):
+        for i in range(len(self.platoons)):
             if self.platoons[i].reach_start_line():
                 in_region_index.append(i)
 
@@ -192,8 +211,8 @@ class Crossing(tk.Tk, object):
                 index2 = in_region_index[j]
                 if [index1, index2] in self.agent_index or [index2, index1] in self.agent_index:  # 如果index1和index2
                                                                                         # 已经组成了一个Agent，则continue
-                    flag[index1] = 1
-                    flag[index2] = 1
+                    self.platoons[index1].free = False
+                    self.platoons[index2].free = False
                     continue
 
                 p0_min_time, p0_max_time, p0_next_v, p1_min_time, p1_max_time, \
@@ -201,104 +220,95 @@ class Crossing(tk.Tk, object):
 
                 if collision_time > 0:          # 当两车队会发生碰撞时则将他们组成一个新的Agent
                     self.agent_index.append([index1, index2])
-                    new_a = Agent(self.agent_num, [self.platoons[index1], self.platoons[index2]])
+                    new_a = Agent(len(self.agents), [self.platoons[index1], self.platoons[index2]])
                     self.agents.append(new_a)
-                    self.agent_num += 1
-                    new_agents += 1
-                    flag[index1] = 1
-                    flag[index2] = 1
+                    self.platoons[index1].free = False
+                    self.platoons[index2].free = False
 
         # 计算各个车队的status
-        for i in range(self.agent_num):
+        for i in range(len(self.agents)):
             p0 = self.agents[i].platoons[0]
             p1 = self.agents[i].platoons[1]
             p0_min_time, p0_max_time, p0_next_v, p1_min_time, p1_max_time, \
             p1_next_v, collision_time = cal_time(p0, p1)
 
             if p0.status == 0 and p1.status == 0:
-                p0.status = 1
-                p1.status = 1
+                p0.status = np.sign(p1_min_time - p0_min_time)
+                p1.status = np.sign(p0_min_time - p1_min_time)
             elif p0.status == 0 and p1.status != 0:
-                a1 = p1.a[0]
-                if a1 != 0:
-                    if (p0_min_time - p1_min_time) * a1 > 0:        # 如果此条件满足，意味着p1先到达冲突区域并且正在采取加速，或者
-                                                                    # 后到达冲突区域并且正在减速，此时p0和p1可以按照正常强化学习策
-                                                                    # 略进行控制，所以p0.status设为1
-                        p0.status = 1
-                    else:                                           # 否则意味着p0和p1如果按照强化学习策略进行控制，会和其他Agent
-                                                                    # 冲突，所以此时p0被限制只能减速，status设为-1
-                        p0.status = -1
-                else:                                               # 若a1 == 0说明同时增加了两个agents，需要考虑上一个的情况
-                    p2 = self.agents[i - 1].platoons[0]
-                    p1_last = self.agents[i - 1].platoons[1]
-                    if p1_last.id != p1.id:
-                        temp = p2
-                        p2 = p1_last
-                        p1_last = temp
-                    p2_min_time, p2_max_time, p2_next_v, p1_l_min_time, p1_l_max_time, \
-                    p1_l_next_v, collision_time_last = cal_time(p2, p1_last)
+                if (p0_min_time - p1_min_time) * p1.status > 0:  # 如果此条件满足，意味着p1先到达冲突区域并且正在采取加速，或者
+                    # 后到达冲突区域并且正在减速，此时p0和p1可以按照正常强化学习策
+                    # 略进行控制，所以p0.status设为1
+                    p0.status = np.sign(p1_min_time - p0_min_time)
+                else:  # 否则意味着p0和p1如果按照强化学习策略进行控制，会和其他Agent
+                    # 冲突，所以此时p0被限制只能减速，status设为-1
+                    p0.status = -2
 
-                    if (p0_min_time - p1_min_time) * (p2_min_time - p1_l_min_time) > 0:
-                                                                    # 如果此条件满足，意味着p1先到达冲突区域并且正在采取加速，或者
-                                                                    # 后到达冲突区域并且正在减速，此时p0和p1可以按照正常强化学习策
-                                                                    # 略进行控制，所以p0.status设为1
-                        p0.status = 1
-                    else:                                           # 否则意味着p0和p1如果按照强化学习策略进行控制，会和其他Agent
-                                                                    # 冲突，所以此时p0被限制只能减速，status设为-1
-                        p0.status = -1
+                # else:                                               # 若a1 == 0说明同时增加了两个agents，需要考虑上一个的情况
+                #     p2 = self.agents[i - 1].platoons[0]
+                #     p1_last = self.agents[i - 1].platoons[1]
+                #     if p1_last.id != p1.id:
+                #         temp = p2
+                #         p2 = p1_last
+                #         p1_last = temp
+                #     p2_min_time, p2_max_time, p2_next_v, p1_l_min_time, p1_l_max_time, \
+                #     p1_l_next_v, collision_time_last = cal_time(p2, p1_last)
+                #
+                #     if (p0_min_time - p1_min_time) * (p2_min_time - p1_l_min_time) > 0:
+                #                                                     # 如果此条件满足，意味着p1先到达冲突区域并且正在采取加速，或者
+                #                                                     # 后到达冲突区域并且正在减速，此时p0和p1可以按照正常强化学习策
+                #                                                     # 略进行控制，所以p0.status设为1
+                #         p0.status = 1
+                #     else:                                           # 否则意味着p0和p1如果按照强化学习策略进行控制，会和其他Agent
+                #                                                     # 冲突，所以此时p0被限制只能减速，status设为-1
+                #         p0.status = -1
 
             elif p0.status != 0 and p1.status == 0:
-                a0 = p0.a[0]
-                if a0 != 0:
-                    if (p1_min_time - p0_min_time) * a0 > 0:
-                        p1.status = 1
-                    else:
-                        p1.status = -1
+                if (p1_min_time - p0_min_time) * p0.status > 0:
+                    p1.status = np.sign(p0_min_time - p1_min_time)
                 else:
-                    p0_last = self.agents[i - 1].platoons[0]
-                    p2 = self.agents[i - 1].platoons[1]
-                    if p0_last.id != p0.id:
-                        temp = p0_last
-                        p0_last = p2
-                        p2 = temp
-                    p0_l_min_time, p0_l_max_time, p0_l_next_v, p2_min_time, p2_max_time, \
-                    p2_next_v, collision_time_last = cal_time(p0_last, p2)
+                    p1.status = -2
 
-                    if (p1_min_time - p0_min_time) * (p2_min_time - p0_l_min_time) > 0:
-                        p1.status = 1
-                    else:
-                        p1.status = -1
+                # else:
+                #     p0_last = self.agents[i - 1].platoons[0]
+                #     p2 = self.agents[i - 1].platoons[1]
+                #     if p0_last.id != p0.id:
+                #         temp = p0_last
+                #         p0_last = p2
+                #         p2 = temp
+                #     p0_l_min_time, p0_l_max_time, p0_l_next_v, p2_min_time, p2_max_time, \
+                #     p2_next_v, collision_time_last = cal_time(p0_last, p2)
+                #
+                #     if (p1_min_time - p0_min_time) * (p2_min_time - p0_l_min_time) > 0:
+                #         p1.status = 1
+                #     else:
+                #         p1.status = -1
 
-            elif p0.status == -1 and p1.status == 1:
-                if p1_min_time < 0:                             # 当某一个车队status为-1时，如果对方已经到达冲突区域，认为已
+            elif p0.status == -2:
+                if p1_min_time < 0:                             # 当某一个车队status为-2时，如果对方已经到达冲突区域，认为已
                                                                 # 经比较安全，可以取消限制
                     p0.status = 1
-            elif p0.status == 1 and p1.status == -1:
+            elif p1.status == -2:
                 if p0_min_time < 0:
                     p1.status = 1
 
-        # if new_agents == 2:
-        #     self.platoons[1].status = 1
-        #     self.platoons[2].status = 1
-        #     self.platoons[1].taken_action = self.agents[1].id
-
         # 计算free platoons
-        for i in range(self.platoons_num):
-            if flag[i] == 0:
+        for i in range(len(self.platoons)):
+            if self.platoons[i].free:
                 free_index.append(i)
                 self.free_plts.append(self.platoons[i])
-                self.free_plts_num += 1
 
         print(self.agent_index)
-        print(new_agents)
-        for i in range(self.platoons_num):
-            print(self.platoons[i].status)
+        print(free_index)
+        for i in range(len(self.platoons)):
+            print(self.platoons[i].status, self.platoons[i].taken_action)
         print('**************')
 
 
 # calculate time for straight and straight
 def cal_time_ss(p0, p1):
-    if (p0.start_dir == config.Direction.LEFT and p1.start_dir == config.Direction.RIGHT) or \
+    if p0.start_dir == p1.start_dir or \
+            (p0.start_dir == config.Direction.LEFT and p1.start_dir == config.Direction.RIGHT) or \
             (p1.start_dir == config.Direction.LEFT and p0.start_dir == config.Direction.RIGHT) or \
             (p0.start_dir == config.Direction.UP and p1.start_dir == config.Direction.DOWN) or \
             (p1.start_dir == config.Direction.UP and p0.start_dir == config.Direction.DOWN):   # 不会相撞
@@ -360,6 +370,8 @@ def cal_time_ss(p0, p1):
 
 # calculate time for straight and turn
 def cal_time_st(p0, p1):
+    if p0.start_dir == p1.start_dir:
+        return 1, 1, 10, 1, 1, 10, -1
     # p_s代表直行车，p_r代表转弯车
     if p0.start_dir == p0.end_dir:
         p_s = p0

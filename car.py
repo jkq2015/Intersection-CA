@@ -5,13 +5,12 @@ import config
 class Platoon:
     def __init__(self, p_id, p_init_x, p_init_y, p_init_v, p_init_a, p_start_dir, p_end_dir):
         self.id = p_id
-        self.num = len(p_init_a)
         self.x = p_init_x
         self.y = p_init_y
         self.v = p_init_v
         self.a = p_init_a
 
-        self.theta = np.zeros(self.num)             # 转角
+        self.theta = np.zeros(len(self.x))             # 转角
         self.start_dir = p_start_dir
         self.end_dir = p_end_dir
         self.taken_action = -1                      # 指示该车队的决策依照的Agent,取值为依照的Agent的id，如果尚未确定依照哪个
@@ -20,13 +19,16 @@ class Platoon:
 
         self.status = 0                             # 指示车队状态，如果车队跟着某个Agent进行决策则取1，如果被限制只能减速则取
                                                     # -1，如果尚未确定状态0
+        self.free = True
 
-        for i in range(self.num):
+        for i in range(len(self.x)):
             self.theta[i] = cal_theta(self.start_dir, self.end_dir, self.x[i], self.y[i])
+
+    def get_num(self):
+        return len(self.x)
 
     def copy_from(self, p):
         self.id = p.id
-        self.num = p.num
         self.x = p.x
         self.y = p.y
         self.v = p.v
@@ -38,10 +40,13 @@ class Platoon:
         self.center = p.center
         self.radius = p.radius
         self.status = p.status
+        self.free = p.free
 
     def copy(self):
         p_copy = Platoon(self.id, self.x, self.y, self.v, self.a, self.start_dir, self.end_dir)
         p_copy.taken_action = self.taken_action
+        p_copy.status = self.status
+        p_copy.free = self.free
         return p_copy
 
     # 计算是否抵达目的地，目的地是图中的红线，尾车离开时算到达，返回True
@@ -74,7 +79,7 @@ class Platoon:
         self.theta[0] = cal_theta(self.start_dir, self.end_dir, self.x[0], self.y[0])
 
         # 计算头车后面的车的加速度
-        for i in range(1, self.num):
+        for i in range(1, len(self.x)):
             delta_x = np.sqrt(np.power((self.x[i] - self.x[i-1]),2) + np.power((self.y[i] - self.y[i-1]),2))
             self.a[i] = follow_car(delta_x, self.v[i], self.v[i-1], self.a[i-1], self.v[0], self.a[0])
             self.theta[i] = cal_theta(self.start_dir, self.end_dir, self.x[i], self.y[i])

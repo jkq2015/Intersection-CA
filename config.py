@@ -16,7 +16,7 @@ CAR_LEN = 4
 V_MAX = 50.0/3
 A_MAX = 3
 A_MIN = -3
-A_STATUS = -2  # status = -1时车辆以此加速度减速
+A_STATUS = -2  # status = -2时车辆以此加速度减速
 
 # 训练参数
 MAX_EPISODES = 1000
