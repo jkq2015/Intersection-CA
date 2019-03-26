@@ -20,7 +20,7 @@ import os
 import shutil
 
 
-#####################  hyper parameters  ####################
+#  hyper parameters  #
 
 LR_A = 0.001    # learning rate for actor
 LR_C = 0.002    # learning rate for critic
@@ -30,7 +30,7 @@ MEMORY_CAPACITY = 10000
 BATCH_SIZE = 32
 
 
-###############################  DDPG  ####################################
+#  DDPG  #
 
 
 class DDPG(object):
@@ -110,7 +110,8 @@ class DDPG(object):
             return tf.layers.dense(net, 1, trainable=trainable)  # Q(s,a)
 
     def save_model(self):
-        if os.path.isdir(self.path): shutil.rmtree(self.path)
+        if os.path.isdir(self.path):
+            shutil.rmtree(self.path)
         os.mkdir(self.path)
         ckpt_path = os.path.join(self.path, 'DDPG.ckpt')
         save_path = self.saver.save(self.sess, ckpt_path, write_meta_graph=True)

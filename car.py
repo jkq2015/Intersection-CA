@@ -13,12 +13,10 @@ class Platoon:
         self.theta = np.zeros(len(self.x))             # 转角
         self.start_dir = p_start_dir
         self.end_dir = p_end_dir
-        self.taken_action = -1                      # 指示该车队的决策依照的Agent,取值为依照的Agent的id，如果尚未确定依照哪个
-                                                    # Agent,则取-1
+        self.taken_action = -1        # 指示该车队的决策依照的Agent,取值为依照的Agent的id，如果尚未确定依照哪个Agent,则取-1
         self.center, self.radius = cal_cr(self.start_dir, self.end_dir, self.x[0], self.y[0])
 
-        self.status = 0                             # 指示车队状态，如果车队跟着某个Agent进行决策则取1，如果被限制只能减速则取
-                                                    # -1，如果尚未确定状态0
+        self.status = 0  # 指示车队状态，如果车队跟着某个Agent进行决策则取1或-1，分别对应加速、减速的情况，如果被限制只能减速则取-2，如果尚未确定状态0
         self.free = True
 
         for i in range(len(self.x)):
@@ -49,16 +47,49 @@ class Platoon:
         p_copy.free = self.free
         return p_copy
 
+    def add_one_car(self, x, y, v, a):
+        self.x = np.hstack((self.x, x))
+        self.y = np.hstack((self.y, y))
+        self.v = np.hstack((self.v, v))
+        self.a = np.hstack((self.a, a))
+        self.theta = np.hstack((self.theta, cal_theta(self.start_dir, self.end_dir, x, y)))
+
+    def follow_front_platoon(self, front_platoon):
+        if front_platoon != -1:
+            delta_x = np.sqrt(np.power((self.x[0] - front_platoon.x[-1]), 2) +
+                              np.power((self.y[0] - front_platoon.y[-1]), 2))
+            if delta_x < config.START_DIS:
+                self.a[0] = follow_car_acc(delta_x, self.v[0], front_platoon.v[-1], front_platoon.a[-1])
+            elif self.v[0] < 5:
+                self.a[0] = 3
+            elif self.v[0] > 10:
+                self.a[0] = 0
+        elif self.v[0] < 5:
+            self.a[0] = 3
+        elif self.v[0] > 10:
+            self.a[0] = 0
+
     # 计算是否抵达目的地，目的地是图中的红线，尾车离开时算到达，返回True
     def reach_des(self):
         if self.end_dir == config.Direction.RIGHT:
-            result = self.x[-1] > config.right_side + config.START_DIS
+            result = self.x[-1] > config.CANVAS_E
         elif self.end_dir == config.Direction.LEFT:
-            result = self.x[-1] + config.CAR_LEN < config.left_side - config.START_DIS
+            result = self.x[-1] + config.CAR_LEN < 0
         elif self.end_dir == config.Direction.UP:
-            result = self.y[-1] + config.CAR_LEN < config.left_side - config.START_DIS
+            result = self.y[-1] + config.CAR_LEN < 0
         else:
-            result = self.y[-1] > config.right_side + config.START_DIS
+            result = self.y[-1] > config.CANVAS_E
+        return result
+
+    def leave_region(self):
+        if self.end_dir == config.Direction.RIGHT:
+            result = self.x[-1] > config.right_side
+        elif self.end_dir == config.Direction.LEFT:
+            result = self.x[-1] + config.CAR_LEN < config.left_side
+        elif self.end_dir == config.Direction.UP:
+            result = self.y[-1] + config.CAR_LEN < config.left_side
+        else:
+            result = self.y[-1] > config.right_side
         return result
 
     # 计算是否进入决策区域，决策区域的起始线也是图中的红线，头车到达时算到达，返回True
@@ -80,8 +111,8 @@ class Platoon:
 
         # 计算头车后面的车的加速度
         for i in range(1, len(self.x)):
-            delta_x = np.sqrt(np.power((self.x[i] - self.x[i-1]),2) + np.power((self.y[i] - self.y[i-1]),2))
-            self.a[i] = follow_car(delta_x, self.v[i], self.v[i-1], self.a[i-1], self.v[0], self.a[0])
+            delta_x = np.sqrt(np.power((self.x[i] - self.x[i-1]), 2) + np.power((self.y[i] - self.y[i-1]), 2))
+            self.a[i] = follow_car_cacc(delta_x, self.v[i], self.v[i - 1], self.a[i - 1], self.v[0], self.a[0])
             self.theta[i] = cal_theta(self.start_dir, self.end_dir, self.x[i], self.y[i])
 
         # 计算速度和位置
@@ -123,7 +154,7 @@ def leave_crossing(x, y, end_dir):
 
 # 计算转弯圆心和半径（只能在到达路口前调用）
 def cal_cr(start_dir, end_dir, x, y):
-    center = [0,0]
+    center = [0, 0]
     if start_dir == end_dir:
         radius = -1
     else:
@@ -182,7 +213,7 @@ def cal_theta(start_dir, end_dir, x, y):
         if start_dir == config.Direction.RIGHT and end_dir == config.Direction.DOWN:
             dx = config.left_side - x
             dy = config.right_side - y
-            theta = np.arctan2(-dx,dy)
+            theta = np.arctan2(-dx, dy)
         elif start_dir == config.Direction.UP and end_dir == config.Direction.LEFT:
             dx = config.left_side - x
             dy = config.right_side - y
@@ -214,25 +245,52 @@ def cal_theta(start_dir, end_dir, x, y):
     return theta
 
 
-def follow_car(delta_x, self_v, front_v, front_a, leader_v, leader_a):
+def follow_car_cacc(delta_x, self_v, front_v, front_a, leader_v, leader_a):
     # CACC参数
-    C_1 = 0.5
+    c_1 = 0.5
     w_n = 0.2
     xi = 1
     gap = 12
 
-    alpha_1 = 1 - C_1
-    alpha_2 = C_1
-    alpha_3 = -(2 * xi - C_1 * (xi + (xi * xi - 1)**0.5)) * w_n
-    alpha_4 = - C_1 * (xi + (xi * xi - 1)**0.5) * w_n
+    alpha_1 = 1 - c_1
+    alpha_2 = c_1
+    alpha_3 = -(2 * xi - c_1 * (xi + (xi * xi - 1)**0.5)) * w_n
+    alpha_4 = - c_1 * (xi + (xi * xi - 1)**0.5) * w_n
     alpha_5 = -w_n * w_n
 
     pre_acc = front_a
     leader_acc = leader_a
     epsilon_i = -delta_x + config.CAR_LEN + gap
     d_epsilon_i = self_v - front_v
-    tem_a = alpha_1 * pre_acc + alpha_2 * leader_acc + alpha_3 * d_epsilon_i + alpha_4 * (self_v - leader_v) + alpha_5 * epsilon_i
+    tem_a = alpha_1 * pre_acc + alpha_2 * leader_acc + alpha_3 * d_epsilon_i + alpha_4 * (self_v - leader_v)\
+        + alpha_5 * epsilon_i
 
+    # 最大最小速度限制
+    if tem_a > config.A_MAX:
+        a_new = config.A_MAX
+    elif tem_a < config.A_MIN:
+        a_new = config.A_MIN
+    else:
+        a_new = tem_a
+
+    # 发动机参数限制
+    if a_new > 0:
+        a_new = min(a_new, engine_speedup_acc_curve(self_v))
+    else:
+        a_new = max(a_new, engine_slowdown_acc_curve(self_v))
+    return a_new
+
+
+def follow_car_acc(delta_x, self_v, front_v, front_a):
+    v1 = self_v
+    v2 = front_v + front_a * config.DT
+    # ACC参数
+    lambda_ = 0.1
+    epsilon = v1 - v2
+    # ACC计算公式
+    t = config.SAFE_DIS / (v1 + 0.1)
+    delta = -delta_x + config.CAR_LEN + t * v1              # consider car's length and safe headway
+    tem_a = -(epsilon + lambda_ * delta) / t
     # 最大最小速度限制
     if tem_a > config.A_MAX:
         a_new = config.A_MAX
