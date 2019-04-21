@@ -9,27 +9,31 @@ from RL_brain import DDPG
 def simulate():
     # fo = open("plot.txt", 'a')
     count = 0
-    while True:
+    while count < 6000:
         env.render()
         env.create()
-        env.cal_agent_free()
-        a = []
-        for i in range(len(env.agents)):
-            a.append([0, 0])
-        # choose action
-        for i in range(len(env.agents)):
-            a[i] = ddpg.choose_action(env.agents[i].observation)
-            # 限制acc
-            v0 = env.agents[i].platoons[0].v[0]
-            v1 = env.agents[i].platoons[1].v[0]
-            if env.agents[i].is_p0_min == 1:
-                a[i][0] = car.constrain_acc(a[i][0], v0)
-                a[i][1] = car.constrain_acc(a[i][1], v1)
-            else:
-                a[i][1] = car.constrain_acc(a[i][1], v0)
-                a[i][0] = car.constrain_acc(a[i][0], v1)
+        if config.IS_RL:
+            env.cal_agent_free()
+            a = []
+            for i in range(len(env.agents)):
+                a.append([0, 0])
+            # choose action
+            for i in range(len(env.agents)):
+                a[i] = ddpg.choose_action(env.agents[i].observation)
+                # 限制acc
+                v0 = env.agents[i].platoons[0].v[0]
+                v1 = env.agents[i].platoons[1].v[0]
+                if env.agents[i].is_p0_min == 1:
+                    a[i][0] = car.constrain_acc(a[i][0], v0)
+                    a[i][1] = car.constrain_acc(a[i][1], v1)
+                else:
+                    a[i][1] = car.constrain_acc(a[i][1], v0)
+                    a[i][0] = car.constrain_acc(a[i][0], v1)
 
-        done = env.step(a)
+            done = env.step(a)
+        else:
+            env.cal_in_region_free()
+            done = env.step_fifo()
         print(count)
         count += 1
         # print(env.platoons[0].a[0])

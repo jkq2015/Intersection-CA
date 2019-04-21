@@ -17,7 +17,10 @@ class Platoon:
         self.center, self.radius = cal_cr(self.start_dir, self.end_dir, self.x[0], self.y[0])
 
         self.status = 0  # 指示车队状态，如果车队跟着某个Agent进行决策则取1或-1，分别对应加速、减速的情况，如果被限制只能减速则取-2，如果尚未确定状态0
+        self.constrain_p = -1       # 指示当status为-2时限制该车队的车队id
         self.free = True
+        self.time = np.zeros(len(self.x))
+        self.whether_pass_crossing = np.zeros(len(self.x), int)
 
         for i in range(len(self.x)):
             self.theta[i] = cal_theta(self.start_dir, self.end_dir, self.x[i], self.y[i])
@@ -53,6 +56,8 @@ class Platoon:
         self.v = np.hstack((self.v, v))
         self.a = np.hstack((self.a, a))
         self.theta = np.hstack((self.theta, cal_theta(self.start_dir, self.end_dir, x, y)))
+        self.time = np.hstack((self.time, 0))
+        self.whether_pass_crossing = np.hstack((self.whether_pass_crossing, 0))
 
     def follow_front_platoon(self, front_platoon):
         if front_platoon != -1:
@@ -60,37 +65,35 @@ class Platoon:
                               np.power((self.y[0] - front_platoon.y[-1]), 2))
             if delta_x < config.START_DIS:
                 self.a[0] = follow_car_acc(delta_x, self.v[0], front_platoon.v[-1], front_platoon.a[-1])
-            elif self.v[0] < 5:
+            elif self.v[0] < config.V_MAX:
                 self.a[0] = 3
-            elif self.v[0] > 10:
+            elif self.v[0] > config.V_MAX:
                 self.a[0] = 0
-        elif self.v[0] < 5:
+        elif self.v[0] < config.V_MAX:
             self.a[0] = 3
-        elif self.v[0] > 10:
+        elif self.v[0] > config.V_MAX:
             self.a[0] = 0
 
-    # 计算是否抵达目的地，目的地是图中的红线，尾车离开时算到达，返回True
-    def reach_des(self):
-        if self.end_dir == config.Direction.RIGHT:
-            result = self.x[-1] > config.CANVAS_E
-        elif self.end_dir == config.Direction.LEFT:
-            result = self.x[-1] + config.CAR_LEN < 0
-        elif self.end_dir == config.Direction.UP:
-            result = self.y[-1] + config.CAR_LEN < 0
+    def add_time(self):
+        for i in range(len(self.time)):
+            self.time[i] += int(not reach_des_(self.x[i], self.y[i], self.end_dir))
+
+    def cal_whether_pass(self):
+        old_sum = np.sum(self.whether_pass_crossing)
+        for i in range(len(self.whether_pass_crossing)):
+            if leave_crossing(self.x[i], self.y[i], self.end_dir):
+                self.whether_pass_crossing[i] = 1
+        if np.sum(self.whether_pass_crossing) > old_sum:
+            return 1
         else:
-            result = self.y[-1] > config.CANVAS_E
-        return result
+            return 0
+
+    # 计算是否抵达目的地，目的地是地图边缘，尾车离开时算到达，返回True
+    def reach_des(self):
+        return reach_des_(self.x[-1], self.y[-1], self.end_dir)
 
     def leave_region(self):
-        if self.end_dir == config.Direction.RIGHT:
-            result = self.x[-1] > config.right_side
-        elif self.end_dir == config.Direction.LEFT:
-            result = self.x[-1] + config.CAR_LEN < config.left_side
-        elif self.end_dir == config.Direction.UP:
-            result = self.y[-1] + config.CAR_LEN < config.left_side
-        else:
-            result = self.y[-1] > config.right_side
-        return result
+        return leave_crossing(self.x[-1], self.y[-1], self.end_dir)
 
     # 计算是否进入决策区域，决策区域的起始线也是图中的红线，头车到达时算到达，返回True
     def reach_start_line(self):
@@ -117,6 +120,10 @@ class Platoon:
 
         # 计算速度和位置
         ds = self.v * config.DT + 0.5 * self.a * config.DT**2
+        for i in range(len(self.v)):
+            if self.v[i] >= config.V_MAX:
+                ds[i] = config.V_MAX * config.DT
+
         self.v = self.v + self.a * config.DT
         self.v = np.clip(self.v, 0, config.V_MAX)
 
@@ -152,6 +159,18 @@ def leave_crossing(x, y, end_dir):
     return result
 
 
+def reach_des_(x, y, end_dir):
+    if end_dir == config.Direction.RIGHT:
+        result = x > config.CANVAS_E
+    elif end_dir == config.Direction.LEFT:
+        result = x + config.CAR_LEN < 0
+    elif end_dir == config.Direction.UP:
+        result = y + config.CAR_LEN < 0
+    else:
+        result = y > config.CANVAS_E
+    return result
+
+
 # 计算转弯圆心和半径（只能在到达路口前调用）
 def cal_cr(start_dir, end_dir, x, y):
     center = [0, 0]
@@ -180,7 +199,7 @@ def cal_cr(start_dir, end_dir, x, y):
             else:
                 center[0] = config.left_side
         else:
-            radius = x - config.left_side
+            radius = y - config.left_side
             center[1] = config.left_side
             if start_dir == config.Direction.LEFT:
                 center[0] = config.right_side
