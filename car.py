@@ -13,12 +13,8 @@ class Platoon:
         self.theta = np.zeros(len(self.x))             # 转角
         self.start_dir = p_start_dir
         self.end_dir = p_end_dir
-        self.taken_action = -1        # 指示该车队的决策依照的Agent,取值为依照的Agent的id，如果尚未确定依照哪个Agent,则取-1
         self.center, self.radius = cal_cr(self.start_dir, self.end_dir, self.x[0], self.y[0])
 
-        self.status = 0  # 指示车队状态，如果车队跟着某个Agent进行决策则取1或-1，分别对应加速、减速的情况，如果被限制只能减速则取-2，如果尚未确定状态0
-        self.constrain_p = -1       # 指示当status为-2时限制该车队的车队id
-        self.free = True
         self.time = np.zeros(len(self.x))
         self.whether_pass_crossing = np.zeros(len(self.x), int)
 
@@ -37,17 +33,11 @@ class Platoon:
         self.theta = p.theta
         self.start_dir = p.start_dir
         self.end_dir = p.end_dir
-        self.taken_action = p.taken_action
         self.center = p.center
         self.radius = p.radius
-        self.status = p.status
-        self.free = p.free
 
     def copy(self):
         p_copy = Platoon(self.id, self.x, self.y, self.v, self.a, self.start_dir, self.end_dir)
-        p_copy.taken_action = self.taken_action
-        p_copy.status = self.status
-        p_copy.free = self.free
         return p_copy
 
     def add_one_car(self, x, y, v, a):
@@ -59,20 +49,59 @@ class Platoon:
         self.time = np.hstack((self.time, 0))
         self.whether_pass_crossing = np.hstack((self.whether_pass_crossing, 0))
 
-    def follow_front_platoon(self, front_platoon):
-        if front_platoon != -1:
-            delta_x = np.sqrt(np.power((self.x[0] - front_platoon.x[-1]), 2) +
-                              np.power((self.y[0] - front_platoon.y[-1]), 2))
-            if delta_x < config.START_DIS:
-                self.a[0] = follow_car_acc(delta_x, self.v[0], front_platoon.v[-1], front_platoon.a[-1])
+    def dis_to_crossing(self):                                                  # 头车，尾车到路口的距离
+        if self.start_dir == config.Direction.EAST:
+            return config.left_side - self.x[0] - config.CAR_LEN, config.left_side - self.x[-1]
+        elif self.start_dir == config.Direction.WEST:
+            return self.x[0] - config.right_side, self.x[-1] + config.CAR_LEN - config.right_side
+        elif self.start_dir == config.Direction.NORTH:
+            return self.y[0] - config.right_side, self.y[-1] + config.CAR_LEN - config.right_side
+        else:
+            return config.left_side - self.y[0] - config.CAR_LEN, config.left_side - self.y[-1]
+
+    def follow_signal(self, color, time_left):                   # 若可以通过路口则返回0，否则返回在停车线前停车需要的加速度
+        leader_dis, tail_dis = self.dis_to_crossing()
+        if leader_dis > 100 or tail_dis < 0:
+            return 0
+        leader_time = leader_dis / config.V_MAX
+        tail_time = tail_dis / config.V_MAX
+        if color == 0:
+            if tail_time < time_left - 1:
+                return_acc = 0
+            else:
+                return_acc = -self.v[0]**2/(2*abs(leader_dis - 3))
+        elif color == 1:
+            return_acc = -self.v[0]**2/(2*abs(leader_dis - 3))
+        else:
+            if leader_time > time_left + 1:
+                return_acc = 0
+            else:
+                return_acc = -self.v[0] ** 2 / (2 * abs(leader_dis - 3))
+        return return_acc
+
+    def follow_front_platoon(self, front_platoon, follow_signal_result):
+        if abs(follow_signal_result) < 1e-6:
+            if front_platoon != -1:
+                delta_x = np.sqrt(np.power((self.x[0] - front_platoon.x[-1]), 2) +
+                                  np.power((self.y[0] - front_platoon.y[-1]), 2))
+                if front_platoon.v[-1] < 3:
+                    self.a[0] = -self.v[0]**2/(2*abs(delta_x - config.SAFE_DIS_CACC))
+                elif self.v[0] < 3:  # 此时说明红灯刚变绿
+                    self.a[0] = follow_car_acc(delta_x, self.v[0], front_platoon.v[-1], front_platoon.a[-1], 4)
+                elif self.v[0] > 10:
+                    self.a[0] = follow_car_acc(delta_x, self.v[0], front_platoon.v[-1], front_platoon.a[-1],
+                                               config.SAFE_DIS)
             elif self.v[0] < config.V_MAX:
                 self.a[0] = 3
             elif self.v[0] > config.V_MAX:
                 self.a[0] = 0
-        elif self.v[0] < config.V_MAX:
-            self.a[0] = 3
-        elif self.v[0] > config.V_MAX:
-            self.a[0] = 0
+        else:
+            follow_car_result = 100
+            if front_platoon != -1:
+                delta_x = np.sqrt(np.power((self.x[0] - front_platoon.x[-1]), 2) +
+                                  np.power((self.y[0] - front_platoon.y[-1]), 2))
+                follow_car_result = -self.v[0]**2/(2*abs(delta_x - config.SAFE_DIS_CACC))
+            self.a[0] = min(follow_car_result, follow_signal_result)
 
     def add_time(self):
         for i in range(len(self.time)):
@@ -94,18 +123,6 @@ class Platoon:
 
     def leave_region(self):
         return leave_crossing(self.x[-1], self.y[-1], self.end_dir)
-
-    # 计算是否进入决策区域，决策区域的起始线也是图中的红线，头车到达时算到达，返回True
-    def reach_start_line(self):
-        if self.start_dir == config.Direction.RIGHT:
-            result = self.x[0] > config.left_side - config.START_DIS
-        elif self.start_dir == config.Direction.LEFT:
-            result = self.x[0] + config.CAR_LEN < config.right_side + config.START_DIS
-        elif self.start_dir == config.Direction.UP:
-            result = self.y[0] + config.CAR_LEN < config.right_side + config.START_DIS
-        else:
-            result = self.y[0] > config.left_side - config.START_DIS
-        return result
 
     # 更新运动学状态，注意：调用此函数之前头车的加速度已经计算出，根据头车加速度和跟驰模型计算整个队伍的状态
     def update(self):
@@ -135,11 +152,11 @@ class Platoon:
 
 # 计算是否到达路口（和是否到达控制区域不同，控制区域是四条红线包围的区域，比路口要大）
 def arrive_crossing(x, y, start_dir):
-    if start_dir == config.Direction.RIGHT:
+    if start_dir == config.Direction.EAST:
         result = x > config.left_side
-    elif start_dir == config.Direction.LEFT:
+    elif start_dir == config.Direction.WEST:
         result = x + config.CAR_LEN < config.right_side
-    elif start_dir == config.Direction.UP:
+    elif start_dir == config.Direction.NORTH:
         result = y + config.CAR_LEN < config.right_side
     else:
         result = y > config.left_side
@@ -148,11 +165,11 @@ def arrive_crossing(x, y, start_dir):
 
 # 计算是否离开路口
 def leave_crossing(x, y, end_dir):
-    if end_dir == config.Direction.RIGHT:
+    if end_dir == config.Direction.EAST:
         result = x > config.right_side
-    elif end_dir == config.Direction.LEFT:
+    elif end_dir == config.Direction.WEST:
         result = x + config.CAR_LEN < config.left_side
-    elif end_dir == config.Direction.UP:
+    elif end_dir == config.Direction.NORTH:
         result = y + config.CAR_LEN < config.left_side
     else:
         result = y > config.right_side
@@ -160,11 +177,11 @@ def leave_crossing(x, y, end_dir):
 
 
 def reach_des_(x, y, end_dir):
-    if end_dir == config.Direction.RIGHT:
+    if end_dir == config.Direction.EAST:
         result = x > config.CANVAS_E
-    elif end_dir == config.Direction.LEFT:
+    elif end_dir == config.Direction.WEST:
         result = x + config.CAR_LEN < 0
-    elif end_dir == config.Direction.UP:
+    elif end_dir == config.Direction.NORTH:
         result = y + config.CAR_LEN < 0
     else:
         result = y > config.CANVAS_E
@@ -177,31 +194,31 @@ def cal_cr(start_dir, end_dir, x, y):
     if start_dir == end_dir:
         radius = -1
     else:
-        if end_dir == config.Direction.RIGHT:
+        if end_dir == config.Direction.EAST:
             radius = config.right_side - x
             center[0] = config.right_side
-            if start_dir == config.Direction.UP:
+            if start_dir == config.Direction.NORTH:
                 center[1] = config.right_side
             else:
                 center[1] = config.left_side
-        elif end_dir == config.Direction.LEFT:
+        elif end_dir == config.Direction.WEST:
             radius = x - config.left_side
             center[0] = config.left_side
-            if start_dir == config.Direction.UP:
+            if start_dir == config.Direction.NORTH:
                 center[1] = config.right_side
             else:
                 center[1] = config.left_side
-        elif end_dir == config.Direction.DOWN:
+        elif end_dir == config.Direction.SOUTH:
             radius = config.right_side - y
             center[1] = config.right_side
-            if start_dir == config.Direction.LEFT:
+            if start_dir == config.Direction.WEST:
                 center[0] = config.right_side
             else:
                 center[0] = config.left_side
         else:
             radius = y - config.left_side
             center[1] = config.left_side
-            if start_dir == config.Direction.LEFT:
+            if start_dir == config.Direction.WEST:
                 center[0] = config.right_side
             else:
                 center[0] = config.left_side
@@ -211,49 +228,49 @@ def cal_cr(start_dir, end_dir, x, y):
 # 根据车辆所处的位置计算转角
 def cal_theta(start_dir, end_dir, x, y):
     if start_dir == end_dir or not arrive_crossing(x, y, start_dir):
-        if start_dir == config.Direction.RIGHT:
+        if start_dir == config.Direction.EAST:
             theta = 0
-        elif start_dir == config.Direction.DOWN:
+        elif start_dir == config.Direction.SOUTH:
             theta = np.pi/2
-        elif start_dir == config.Direction.LEFT:
+        elif start_dir == config.Direction.WEST:
             theta = np.pi
         else:
             theta = -np.pi/2
     elif leave_crossing(x, y, end_dir):
-        if end_dir == config.Direction.RIGHT:
+        if end_dir == config.Direction.EAST:
             theta = 0
-        elif end_dir == config.Direction.DOWN:
+        elif end_dir == config.Direction.SOUTH:
             theta = np.pi/2
-        elif end_dir == config.Direction.LEFT:
+        elif end_dir == config.Direction.WEST:
             theta = np.pi
         else:
             theta = -np.pi/2
     else:
-        if start_dir == config.Direction.RIGHT and end_dir == config.Direction.DOWN:
+        if start_dir == config.Direction.EAST and end_dir == config.Direction.SOUTH:
             dx = config.left_side - x
             dy = config.right_side - y
             theta = np.arctan2(-dx, dy)
-        elif start_dir == config.Direction.UP and end_dir == config.Direction.LEFT:
+        elif start_dir == config.Direction.NORTH and end_dir == config.Direction.WEST:
             dx = config.left_side - x
             dy = config.right_side - y
             theta = np.arctan2(dx, -dy)
-        elif start_dir == config.Direction.LEFT and end_dir == config.Direction.DOWN:
+        elif start_dir == config.Direction.WEST and end_dir == config.Direction.SOUTH:
             dx = config.right_side - x
             dy = config.right_side - y
             theta = np.arctan2(dx, -dy)
-        elif start_dir == config.Direction.UP and end_dir == config.Direction.RIGHT:
+        elif start_dir == config.Direction.NORTH and end_dir == config.Direction.EAST:
             dx = config.right_side - x
             dy = config.right_side - y
             theta = np.arctan2(-dx, dy)
-        elif start_dir == config.Direction.RIGHT and end_dir == config.Direction.UP:
+        elif start_dir == config.Direction.EAST and end_dir == config.Direction.NORTH:
             dx = config.left_side - x
             dy = config.left_side - y
             theta = np.arctan2(dx, -dy)
-        elif start_dir == config.Direction.DOWN and end_dir == config.Direction.LEFT:
+        elif start_dir == config.Direction.SOUTH and end_dir == config.Direction.WEST:
             dx = config.left_side - x
             dy = config.left_side - y
             theta = np.arctan2(-dx, dy)
-        elif start_dir == config.Direction.LEFT and end_dir == config.Direction.UP:
+        elif start_dir == config.Direction.WEST and end_dir == config.Direction.NORTH:
             dx = config.right_side - x
             dy = config.left_side - y
             theta = np.arctan2(-dx, dy)
@@ -269,7 +286,7 @@ def follow_car_cacc(delta_x, self_v, front_v, front_a, leader_v, leader_a):
     c_1 = 0.5
     w_n = 0.2
     xi = 1
-    gap = 12
+    gap = config.SAFE_DIS_CACC
 
     alpha_1 = 1 - c_1
     alpha_2 = c_1
@@ -300,14 +317,14 @@ def follow_car_cacc(delta_x, self_v, front_v, front_a, leader_v, leader_a):
     return a_new
 
 
-def follow_car_acc(delta_x, self_v, front_v, front_a):
+def follow_car_acc(delta_x, self_v, front_v, front_a, tar_dis):
     v1 = self_v
     v2 = front_v + front_a * config.DT
     # ACC参数
     lambda_ = 0.1
     epsilon = v1 - v2
     # ACC计算公式
-    t = config.SAFE_DIS / (v1 + 0.1)
+    t = tar_dis / (v1 + 0.1)
     delta = -delta_x + config.CAR_LEN + t * v1              # consider car's length and safe headway
     tem_a = -(epsilon + lambda_ * delta) / t
     # 最大最小速度限制

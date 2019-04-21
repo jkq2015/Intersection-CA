@@ -6,10 +6,10 @@ DT = 0.1
 # 环境
 CANVAS_E = 600
 LANE_WIDTH = 8
-START_DIS = 70
 left_side = CANVAS_E / 2 - 3 * LANE_WIDTH
 right_side = CANVAS_E / 2 + 3 * LANE_WIDTH
 SAFE_DIS = 40
+SAFE_DIS_CACC = 12
 
 # 车辆
 CAR_WIDTH = 4
@@ -28,11 +28,10 @@ A_DIM = 2
 VAR = 6  # control exploration
 
 # 策略
-IS_RL = True
 
 
 class Direction(Enum):
-    UP = 0
-    DOWN = 1
-    LEFT = 2
-    RIGHT = 3
+    NORTH = 0
+    SOUTH = 1
+    WEST = 2
+    EAST = 3
