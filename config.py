@@ -8,7 +8,7 @@ CANVAS_E = 600
 LANE_WIDTH = 8
 left_side = CANVAS_E / 2 - 3 * LANE_WIDTH
 right_side = CANVAS_E / 2 + 3 * LANE_WIDTH
-SAFE_DIS = 40
+SAFE_DIS = 20
 SAFE_DIS_CACC = 12
 
 # 车辆
@@ -32,6 +32,6 @@ VAR = 6  # control exploration
 
 class Direction(Enum):
     NORTH = 0
-    SOUTH = 1
-    WEST = 2
-    EAST = 3
+    EAST = 1
+    SOUTH = 2
+    WEST = 3

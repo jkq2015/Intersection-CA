@@ -87,7 +87,7 @@ class Platoon:
                 if front_platoon.v[-1] < 3:
                     self.a[0] = -self.v[0]**2/(2*abs(delta_x - config.SAFE_DIS_CACC))
                 elif self.v[0] < 3:  # 此时说明红灯刚变绿
-                    self.a[0] = follow_car_acc(delta_x, self.v[0], front_platoon.v[-1], front_platoon.a[-1], 4)
+                    self.a[0] = 3
                 elif self.v[0] > 10:
                     self.a[0] = follow_car_acc(delta_x, self.v[0], front_platoon.v[-1], front_platoon.a[-1],
                                                config.SAFE_DIS)
@@ -249,15 +249,15 @@ def cal_theta(start_dir, end_dir, x, y):
         if start_dir == config.Direction.EAST and end_dir == config.Direction.SOUTH:
             dx = config.left_side - x
             dy = config.right_side - y
-            theta = np.arctan2(-dx, dy)
+            theta = np.arctan2(-dx/2, dy/(config.CAR_LEN + 2))
         elif start_dir == config.Direction.NORTH and end_dir == config.Direction.WEST:
             dx = config.left_side - x
             dy = config.right_side - y
-            theta = np.arctan2(dx, -dy)
+            theta = np.arctan2(dx/(3*config.LANE_WIDTH + 2), -dy/(4*config.LANE_WIDTH + 2 + config.CAR_LEN))
         elif start_dir == config.Direction.WEST and end_dir == config.Direction.SOUTH:
             dx = config.right_side - x
             dy = config.right_side - y
-            theta = np.arctan2(dx, -dy)
+            theta = np.arctan2(dx/(4*config.LANE_WIDTH + 2 + config.CAR_LEN), -dy/(3*config.LANE_WIDTH + 2 + config.CAR_LEN))
         elif start_dir == config.Direction.NORTH and end_dir == config.Direction.EAST:
             dx = config.right_side - x
             dy = config.right_side - y
@@ -265,7 +265,7 @@ def cal_theta(start_dir, end_dir, x, y):
         elif start_dir == config.Direction.EAST and end_dir == config.Direction.NORTH:
             dx = config.left_side - x
             dy = config.left_side - y
-            theta = np.arctan2(dx, -dy)
+            theta = np.arctan2(dx/(4*config.LANE_WIDTH + 2), -dy/(3*config.LANE_WIDTH + 2))
         elif start_dir == config.Direction.SOUTH and end_dir == config.Direction.WEST:
             dx = config.left_side - x
             dy = config.left_side - y
@@ -273,11 +273,11 @@ def cal_theta(start_dir, end_dir, x, y):
         elif start_dir == config.Direction.WEST and end_dir == config.Direction.NORTH:
             dx = config.right_side - x
             dy = config.left_side - y
-            theta = np.arctan2(-dx, dy)
+            theta = np.arctan2(-dx/(config.CAR_LEN + 2), dy/2)
         else:
             dx = config.right_side - x
             dy = config.left_side - y
-            theta = np.arctan2(dx, -dy)
+            theta = np.arctan2(dx/(3*config.LANE_WIDTH + config.CAR_LEN + 2), -dy/(4*config.LANE_WIDTH + 2))
     return theta
 
 
