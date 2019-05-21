@@ -30,6 +30,11 @@ VAR = 6  # control exploration
 # 策略
 
 
+# 信号灯
+MIN_GREEN_TIME = 10
+MAX_GREEN_TIME = 40
+
+
 class Direction(Enum):
     NORTH = 0
     EAST = 1

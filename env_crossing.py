@@ -42,33 +42,52 @@ class Crossing(tk.Tk, object):
         self.canvas.create_line(y0, x0, y1, x1)
 
         fill_color = ['green', 'yellow', 'red']
-        color = self.get_signal_color()
-        lane = [1, 2, 0]
+        offset = [1, 2, 0]
         temp = []
         for i in range(3):
-            temp.append(self.canvas.create_line(config.CANVAS_E / 2 + lane[i] * config.LANE_WIDTH, config.right_side,
-                                                config.CANVAS_E / 2 + (lane[i] + 1) * config.LANE_WIDTH,
-                                                config.right_side, fill=fill_color[color[0][i]]))
+            start_dir = config.Direction(0)
+            lane = i
+            if i == 2:
+                lane = 3
+            end_dir = config.Direction((0 + lane) % 4)
+            temp.append(self.canvas.create_line(config.CANVAS_E / 2 + offset[i] * config.LANE_WIDTH, config.right_side,
+                                                config.CANVAS_E / 2 + (offset[i] + 1) * config.LANE_WIDTH,
+                                                config.right_side, fill=fill_color[self.signal.get_color(start_dir, end_dir)]))
         self.signal_show.append(temp)
         temp = []
         for i in range(3):
-            temp.append(self.canvas.create_line(config.left_side, config.CANVAS_E / 2 + lane[i] * config.LANE_WIDTH,
+            start_dir = config.Direction(1)
+            lane = i
+            if i == 2:
+                lane = 3
+            end_dir = config.Direction((1 + lane) % 4)
+            temp.append(self.canvas.create_line(config.left_side, config.CANVAS_E / 2 + offset[i] * config.LANE_WIDTH,
                                                 config.left_side,
-                                                config.CANVAS_E / 2 + (lane[i] + 1) * config.LANE_WIDTH,
-                                                fill=fill_color[color[1][i]]))
+                                                config.CANVAS_E / 2 + (offset[i] + 1) * config.LANE_WIDTH,
+                                                fill=fill_color[self.signal.get_color(start_dir, end_dir)]))
         self.signal_show.append(temp)
         temp = []
         for i in range(3):
-            temp.append(self.canvas.create_line(config.CANVAS_E / 2 - lane[i] * config.LANE_WIDTH, config.left_side,
-                                                config.CANVAS_E / 2 - (lane[i] + 1) * config.LANE_WIDTH,
-                                                config.left_side, fill=fill_color[color[2][i]]))
+            start_dir = config.Direction(2)
+            lane = i
+            if i == 2:
+                lane = 3
+            end_dir = config.Direction((2 + lane) % 4)
+            temp.append(self.canvas.create_line(config.CANVAS_E / 2 - offset[i] * config.LANE_WIDTH, config.left_side,
+                                                config.CANVAS_E / 2 - (offset[i] + 1) * config.LANE_WIDTH,
+                                                config.left_side, fill=fill_color[self.signal.get_color(start_dir, end_dir)]))
         self.signal_show.append(temp)
         temp = []
         for i in range(3):
-            temp.append(self.canvas.create_line(config.right_side, config.CANVAS_E / 2 - lane[i] * config.LANE_WIDTH,
+            start_dir = config.Direction(3)
+            lane = i
+            if i == 2:
+                lane = 3
+            end_dir = config.Direction((3 + lane) % 4)
+            temp.append(self.canvas.create_line(config.right_side, config.CANVAS_E / 2 - offset[i] * config.LANE_WIDTH,
                                                 config.right_side,
-                                                config.CANVAS_E / 2 - (lane[i] + 1) * config.LANE_WIDTH,
-                                                fill=fill_color[color[3][i]]))
+                                                config.CANVAS_E / 2 - (offset[i] + 1) * config.LANE_WIDTH,
+                                                fill=fill_color[self.signal.get_color(start_dir, end_dir)]))
         self.signal_show.append(temp)
 
         x0, y0, x1, y1 = config.CANVAS_E/2, 0, config.CANVAS_E/2, config.left_side
@@ -88,9 +107,6 @@ class Crossing(tk.Tk, object):
 
         # pack all
         self.canvas.pack()
-
-    def get_signal_color(self):
-        return self.signal.get_color()
 
     def get_signal_time_left(self):
         return self.signal.get_time_left()
@@ -140,7 +156,7 @@ class Crossing(tk.Tk, object):
                 self.canvas.create_rectangle(init_x, init_y, init_x + config.CAR_LEN, init_y + config.CAR_WIDTH))
 
     def create(self):
-        lambda_ = 0.6
+        lambda_ = 0.8
         if random.random() < lambda_*config.DT*np.exp(-lambda_*config.DT):
             start_dir = random.randint(0, 3)
             end_dir = random.randint(0, 3)
@@ -160,6 +176,18 @@ class Crossing(tk.Tk, object):
                     index[j], index[j + 1] = index[j + 1], index[j]
 
         return index
+
+    def time_to_stop_line(self, phase):
+        dir = signal.phase_to_dir(phase)
+        for_return = []
+        for i in range(len(self.platoons)):
+            if (self.platoons[i].start_dir == dir[0][0] and self.platoons[i].end_dir == dir[0][
+                1]) or (self.platoons[i].start_dir == dir[1][0] and self.platoons[i].end_dir ==
+                        dir[1][1]):
+                leader_dis, tail_dis = self.platoons[i].dis_to_crossing()
+                for_return.append(tail_dis/10)
+        for_return.sort()
+        return for_return
 
     def get_front_platoon(self, platoon_id, start_dir, end_dir):
         index = self.cars_in_dir(start_dir, end_dir)
@@ -182,14 +210,19 @@ class Crossing(tk.Tk, object):
     def step(self):
         done = (len(self.platoons) > 0)  # 表示整个场景的仿真是否完成
 
-        old_color = self.get_signal_color()
-        self.signal.cal_new_time()
-        new_color = self.get_signal_color()
+        current_phase = self.signal.get_current_phase()
+        next_phase_to_line_time = self.time_to_stop_line((current_phase + 1) % 4)
+        next_next_phase_to_line_time = self.time_to_stop_line((current_phase + 2) % 4)
+        self.signal.cal_new_time(next_phase_to_line_time, next_next_phase_to_line_time)
         fill_color = ['green', 'yellow', 'red']
-        for i in range(len(old_color)):
-            for j in range(len(old_color[0])):
-                if new_color[i][j] != old_color[i][j]:
-                    self.canvas.itemconfigure(self.signal_show[i][j], fill=fill_color[new_color[i][j]])
+        for i in range(4):
+            for j in range(3):
+                start_dir = config.Direction(i)
+                lane = j
+                if j == 2:
+                    lane = 3
+                end_dir = config.Direction((i+lane) % 4)
+                self.canvas.itemconfigure(self.signal_show[i][j], fill=fill_color[self.signal.get_color(start_dir, end_dir)])
 
         for i in range(len(self.platoons)):
             self.platoons[i].add_time()
@@ -197,12 +230,10 @@ class Crossing(tk.Tk, object):
 
         i = 0
         while i < len(self.platoons):
-            time_left = self.signal.get_time_left()
-            road = self.platoons[i].start_dir.value
-            lane = (self.platoons[i].end_dir.value - self.platoons[i].start_dir.value) % 4
-            if lane == 3:
-                lane = 2
-            follow_signal_result = self.platoons[i].follow_signal(new_color[road][lane], time_left[road][lane])
+            time_left = self.get_signal_time_left()
+            color = self.signal.get_color(self.platoons[i].start_dir, self.platoons[i].end_dir)
+            about_to_green_ = self.signal.about_to_green(self.platoons[i].start_dir, self.platoons[i].end_dir)
+            follow_signal_result = self.platoons[i].follow_signal(color, time_left, about_to_green_)
             front_platoon = self.get_front_platoon(self.platoons[i].id, self.platoons[i].start_dir, self.platoons[i].end_dir)
             self.platoons[i].follow_front_platoon(front_platoon, follow_signal_result)
             # update
@@ -228,7 +259,7 @@ class Crossing(tk.Tk, object):
         return done
 
     def render(self):
-        time.sleep(0.02)
+        time.sleep(0.01)
         self.update()
 
 

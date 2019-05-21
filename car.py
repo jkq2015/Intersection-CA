@@ -59,7 +59,7 @@ class Platoon:
         else:
             return config.left_side - self.y[0] - config.CAR_LEN, config.left_side - self.y[-1]
 
-    def follow_signal(self, color, time_left):                   # 若可以通过路口则返回0，否则返回在停车线前停车需要的加速度
+    def follow_signal(self, color, time_left, about_to_green):   # 若可以通过路口则返回0，否则返回在停车线前停车需要的加速度
         leader_dis, tail_dis = self.dis_to_crossing()
         if leader_dis > 100 or tail_dis < 0:
             return 0
@@ -69,14 +69,16 @@ class Platoon:
             if tail_time < time_left - 1:
                 return_acc = 0
             else:
-                return_acc = -self.v[0]**2/(2*abs(leader_dis - 3))
+                return_acc = -self.v[0]**2/(2*abs(leader_dis - 3) + 0.1)
         elif color == 1:
-            return_acc = -self.v[0]**2/(2*abs(leader_dis - 3))
-        else:
+            return_acc = -self.v[0]**2/(2*abs(leader_dis - 3) + 0.1)
+        elif about_to_green:
             if leader_time > time_left + 1:
                 return_acc = 0
             else:
-                return_acc = -self.v[0] ** 2 / (2 * abs(leader_dis - 3))
+                return_acc = -self.v[0] ** 2 / (2 * abs(leader_dis - 3) + 0.1)
+        else:
+            return_acc = -self.v[0] ** 2 / (2 * abs(leader_dis - 3) + 0.1)
         return return_acc
 
     def follow_front_platoon(self, front_platoon, follow_signal_result):
@@ -85,7 +87,7 @@ class Platoon:
                 delta_x = np.sqrt(np.power((self.x[0] - front_platoon.x[-1]), 2) +
                                   np.power((self.y[0] - front_platoon.y[-1]), 2))
                 if front_platoon.v[-1] < 3:
-                    self.a[0] = -self.v[0]**2/(2*abs(delta_x - config.SAFE_DIS_CACC))
+                    self.a[0] = -self.v[0]**2/(2*abs(delta_x - config.SAFE_DIS_CACC)+0.1)
                 elif self.v[0] < 3:  # 此时说明红灯刚变绿
                     self.a[0] = 3
                 elif self.v[0] > 10:
@@ -96,12 +98,17 @@ class Platoon:
             elif self.v[0] > config.V_MAX:
                 self.a[0] = 0
         else:
-            follow_car_result = 100
+            follow_car_result = config.A_MAX
+            if front_platoon != -1 and arrive_crossing(front_platoon.x[-1],front_platoon.y[-1],front_platoon.start_dir):
+                front_platoon = -1
             if front_platoon != -1:
                 delta_x = np.sqrt(np.power((self.x[0] - front_platoon.x[-1]), 2) +
                                   np.power((self.y[0] - front_platoon.y[-1]), 2))
                 follow_car_result = -self.v[0]**2/(2*abs(delta_x - config.SAFE_DIS_CACC))
-            self.a[0] = min(follow_car_result, follow_signal_result)
+            if front_platoon != -1 and delta_x > config.SAFE_DIS and self.v[0] < 3:
+                self.a[0] = 2
+            else:
+                self.a[0] = min(follow_car_result, follow_signal_result)
 
     def add_time(self):
         for i in range(len(self.time)):

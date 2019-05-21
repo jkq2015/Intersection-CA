@@ -12,7 +12,7 @@ def simulate():
         env.render()
         env.create()
         done = env.step()
-        print(count, env.get_signal_color(), env.get_signal_time_left())
+        print(count, env.get_signal_time_left())
         count += 1
         # print(env.platoons[0].a[0])
         # if len(env.platoons) == 3:
