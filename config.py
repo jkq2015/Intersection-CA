@@ -28,7 +28,7 @@ A_DIM = 2
 VAR = 6  # control exploration
 
 # 策略
-
+FIXED_TIMING = True
 
 # 信号灯
 MIN_GREEN_TIME = 10

@@ -73,48 +73,51 @@ def phase_to_dir(phase):                        # doesn't consider vehicles turn
 
 
 def cal_green_time(next_phase_to_line_time, next_next_phase_to_line_time):
-    np = len(next_phase_to_line_time)
-    nq = len(next_next_phase_to_line_time)
-    time_in_order = [0]*(np + nq)
-    cost = [0]*(np + nq)
-    p = q = i = 0
-    while p < np and q < nq:
-        while p < np and next_phase_to_line_time[p] < next_next_phase_to_line_time[q]:
+    if config.FIXED_TIMING:
+        return 25
+    else:
+        np = len(next_phase_to_line_time)
+        nq = len(next_next_phase_to_line_time)
+        time_in_order = [0]*(np + nq)
+        cost = [0]*(np + nq)
+        p = q = i = 0
+        while p < np and q < nq:
+            while p < np and next_phase_to_line_time[p] < next_next_phase_to_line_time[q]:
+                time_in_order[i] = next_phase_to_line_time[p]
+                cost[i] = q + np - p - 1
+                i += 1
+                p += 1
+
+            while q < nq and p < np and next_next_phase_to_line_time[q] < next_phase_to_line_time[p]:
+                time_in_order[i] = next_next_phase_to_line_time[q]
+                cost[i] = q + np - p - 1
+                i += 1
+                q += 1
+        while p < np:
             time_in_order[i] = next_phase_to_line_time[p]
-            cost[i] = q + np - p - 1
+            cost[i] = nq + np - p - 1
             i += 1
             p += 1
-
-        while q < nq and p < np and next_next_phase_to_line_time[q] < next_phase_to_line_time[p]:
+        while q < nq:
             time_in_order[i] = next_next_phase_to_line_time[q]
-            cost[i] = q + np - p - 1
+            cost[i] = q
             i += 1
             q += 1
-    while p < np:
-        time_in_order[i] = next_phase_to_line_time[p]
-        cost[i] = nq + np - p - 1
-        i += 1
-        p += 1
-    while q < nq:
-        time_in_order[i] = next_next_phase_to_line_time[q]
-        cost[i] = q
-        i += 1
-        q += 1
 
-    min_cost = min(cost)
-    arg_min_time = []
-    for i in range(np + nq):
-        if cost[i] == min_cost:
-            arg_min_time.append(time_in_order[i])
+        min_cost = min(cost)
+        arg_min_time = []
+        for i in range(np + nq):
+            if cost[i] == min_cost:
+                arg_min_time.append(time_in_order[i])
 
-    for_return = 0
-    if max(arg_min_time) < config.MIN_GREEN_TIME:
-        for_return = config.MIN_GREEN_TIME
-    elif min(arg_min_time) > config.MAX_GREEN_TIME:
-        for_return = config.MAX_GREEN_TIME
-    else:
-        for i in range(len(arg_min_time)):
-            if config.MIN_GREEN_TIME < arg_min_time[i] < config.MAX_GREEN_TIME:
-                for_return = int(arg_min_time[i]) + 1
-                break
-    return 20 #for_return
+        for_return = 0
+        if max(arg_min_time) < config.MIN_GREEN_TIME:
+            for_return = config.MIN_GREEN_TIME
+        elif min(arg_min_time) > config.MAX_GREEN_TIME:
+            for_return = config.MAX_GREEN_TIME
+        else:
+            for i in range(len(arg_min_time)):
+                if config.MIN_GREEN_TIME < arg_min_time[i] < config.MAX_GREEN_TIME:
+                    for_return = int(arg_min_time[i]) + 1
+                    break
+        return for_return

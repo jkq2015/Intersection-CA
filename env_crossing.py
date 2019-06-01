@@ -177,7 +177,7 @@ class Crossing(tk.Tk, object):
 
         return index
 
-    def time_to_stop_line(self, phase):
+    def time_to_stop_line(self, phase, is_leader):
         dir = signal.phase_to_dir(phase)
         for_return = []
         for i in range(len(self.platoons)):
@@ -185,7 +185,10 @@ class Crossing(tk.Tk, object):
                 1]) or (self.platoons[i].start_dir == dir[1][0] and self.platoons[i].end_dir ==
                         dir[1][1]):
                 leader_dis, tail_dis = self.platoons[i].dis_to_crossing()
-                for_return.append(tail_dis/10)
+                if is_leader:
+                    for_return.append(leader_dis/10)
+                else:
+                    for_return.append(tail_dis/10)
         for_return.sort()
         return for_return
 
@@ -211,8 +214,8 @@ class Crossing(tk.Tk, object):
         done = (len(self.platoons) > 0)  # 表示整个场景的仿真是否完成
 
         current_phase = self.signal.get_current_phase()
-        next_phase_to_line_time = self.time_to_stop_line((current_phase + 1) % 4)
-        next_next_phase_to_line_time = self.time_to_stop_line((current_phase + 2) % 4)
+        next_phase_to_line_time = self.time_to_stop_line((current_phase + 1) % 4, False)
+        next_next_phase_to_line_time = self.time_to_stop_line((current_phase + 2) % 4, True)
         self.signal.cal_new_time(next_phase_to_line_time, next_next_phase_to_line_time)
         fill_color = ['green', 'yellow', 'red']
         for i in range(4):
@@ -241,7 +244,10 @@ class Crossing(tk.Tk, object):
             if self.platoons[i].reach_des():  # 只要有一个free platoon尚未到达目的地,就认为整个场景的仿真没有完成
                 for j in range(self.platoons[i].get_num()):
                     self.canvas.delete(self.platoons_show[i][j])
-                    # fo.write(str(self.platoons[i].time[j]) + '\n')
+                    # start_dir = self.platoons[i].start_dir
+                    # end_dir = self.platoons[i].end_dir
+                    # if end_dir.value - start_dir.value != 1 and end_dir.value - start_dir.value != -3:
+                    #     print(self.platoons[i].time[j])
                 del self.platoons[i]
                 del self.platoons_show[i]
             else:
@@ -261,6 +267,19 @@ class Crossing(tk.Tk, object):
     def render(self):
         time.sleep(0.01)
         self.update()
+
+    def cal_queue_length(self):
+        queue = 0
+        for i in range(len(self.platoons)):
+            start_dir = self.platoons[i].start_dir
+            end_dir = self.platoons[i].end_dir
+            if end_dir.value - start_dir.value == 1 or end_dir.value - start_dir.value == -3:
+                continue
+            color = self.signal.get_color(start_dir, end_dir)
+            leader_dis, tail_dis = self.platoons[i].dis_to_crossing()
+            if tail_dis > 0 and leader_dis < 100 and color != 0:
+                queue += len(self.platoons[i].x)
+        return queue
 
 
 def compare(direction, plt1, plt2):                 # 按先后顺序排序，若plt1在plt2的前面，则返回True

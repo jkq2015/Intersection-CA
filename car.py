@@ -63,17 +63,17 @@ class Platoon:
         leader_dis, tail_dis = self.dis_to_crossing()
         if leader_dis > 100 or tail_dis < 0:
             return 0
-        leader_time = leader_dis / config.V_MAX
-        tail_time = tail_dis / config.V_MAX
+        leader_time = leader_dis / 10
+        tail_time = tail_dis / 10
         if color == 0:
-            if tail_time < time_left - 1:
+            if tail_time < time_left:
                 return_acc = 0
             else:
                 return_acc = -self.v[0]**2/(2*abs(leader_dis - 3) + 0.1)
         elif color == 1:
             return_acc = -self.v[0]**2/(2*abs(leader_dis - 3) + 0.1)
         elif about_to_green:
-            if leader_time > time_left + 1:
+            if leader_time > time_left:
                 return_acc = 0
             else:
                 return_acc = -self.v[0] ** 2 / (2 * abs(leader_dis - 3) + 0.1)
