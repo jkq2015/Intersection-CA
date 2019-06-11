@@ -41,6 +41,19 @@ class Crossing(tk.Tk, object):
         self.canvas.create_line(x0, y0, x1, y1)
         self.canvas.create_line(y0, x0, y1, x1)
 
+        x21, x22, x31, x32 = 0, config.left_side, config.right_side, config.CANVAS_E
+        line_offset = [1, 2, 4, 5]
+        for i in range(4):
+            self.canvas.create_line(x21, config.left_side + config.LANE_WIDTH * line_offset[i], x22,
+                                    config.left_side + config.LANE_WIDTH * line_offset[i], dash=(4, 4))
+            self.canvas.create_line(x31, config.left_side + config.LANE_WIDTH * line_offset[i], x32,
+                                    config.left_side + config.LANE_WIDTH * line_offset[i], dash=(4, 4))
+        for i in range(4):
+            self.canvas.create_line(config.left_side + config.LANE_WIDTH * line_offset[i], x21,
+                                    config.left_side + config.LANE_WIDTH * line_offset[i], x22, dash=(4, 4))
+            self.canvas.create_line(config.left_side + config.LANE_WIDTH * line_offset[i], x31,
+                                    config.left_side + config.LANE_WIDTH * line_offset[i], x32, dash=(4, 4))
+
         fill_color = ['green', 'yellow', 'red']
         offset = [1, 2, 0]
         temp = []
