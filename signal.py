@@ -28,6 +28,8 @@ class Signal:
                 self.time_left = cal_green_time(next_queue_time, next_next_queue_time)
 
     def get_color(self, start_dir, end_dir):
+        if end_dir.value - start_dir.value == 1 or end_dir.value - start_dir.value == -3:
+            return 0
         phase = dir_to_phase(start_dir, end_dir)
         if phase == self.current_phase:
             return self.green_or_yellow

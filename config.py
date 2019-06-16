@@ -31,7 +31,7 @@ VAR = 6  # control exploration
 FIXED_TIMING = True
 
 # 信号灯
-MIN_GREEN_TIME = 10
+MIN_GREEN_TIME = 15
 MAX_GREEN_TIME = 40
 
 

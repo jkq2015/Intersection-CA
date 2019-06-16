@@ -65,7 +65,9 @@ class Crossing(tk.Tk, object):
             end_dir = config.Direction((0 + lane) % 4)
             temp.append(self.canvas.create_line(config.CANVAS_E / 2 + offset[i] * config.LANE_WIDTH, config.right_side,
                                                 config.CANVAS_E / 2 + (offset[i] + 1) * config.LANE_WIDTH,
-                                                config.right_side, fill=fill_color[self.signal.get_color(start_dir, end_dir)]))
+                                                config.right_side,
+                                                fill=fill_color[self.signal.get_color(start_dir, end_dir)]))
+
         self.signal_show.append(temp)
         temp = []
         for i in range(3):
@@ -88,7 +90,9 @@ class Crossing(tk.Tk, object):
             end_dir = config.Direction((2 + lane) % 4)
             temp.append(self.canvas.create_line(config.CANVAS_E / 2 - offset[i] * config.LANE_WIDTH, config.left_side,
                                                 config.CANVAS_E / 2 - (offset[i] + 1) * config.LANE_WIDTH,
-                                                config.left_side, fill=fill_color[self.signal.get_color(start_dir, end_dir)]))
+                                                config.left_side,
+                                                fill=fill_color[self.signal.get_color(start_dir, end_dir)]))
+
         self.signal_show.append(temp)
         temp = []
         for i in range(3):
@@ -125,8 +129,9 @@ class Crossing(tk.Tk, object):
         return self.signal.get_time_left()
 
     def create_one_car(self, start_dir, end_dir):
+        color = ['blue', 'red', 'green', 'black']
         index = self.cars_in_dir(start_dir, end_dir)
-        lane = (end_dir.value - start_dir.value)%4
+        lane = (end_dir.value - start_dir.value) % 4
         if lane == 3:
             lane = -1
         init_xs = [config.CANVAS_E / 2 + (lane + 1) * config.LANE_WIDTH + 2, 1,
@@ -159,14 +164,23 @@ class Crossing(tk.Tk, object):
                                 np.array([init_a]), start_dir, end_dir)
             self.platoons.append(p_new)
             self.count += 1
+            if len(index) == 0:
+                new_color = color[random.randint(0, len(color)-1)]
+            else:
+                pre_color = self.canvas.itemcget(self.platoons_show[index[-1]][0], 'fill')
+                new_color = color[random.randint(0, len(color) - 1)]
+                while new_color == pre_color:
+                    new_color = color[random.randint(0, len(color) - 1)]
             platoon_show = [self.canvas.create_rectangle(
-                init_x, init_y, init_x + config.CAR_LEN, init_y + config.CAR_WIDTH)]
+                init_x, init_y, init_x + config.CAR_LEN, init_y + config.CAR_WIDTH, outline=new_color, fill=new_color)]
             self.platoons_show.append(platoon_show)
         else:
             self.platoons[index[-1]].add_one_car(np.array([init_x]), np.array([init_y]),
                                                  np.array([init_v]), np.array([init_a]))
+            new_color = self.canvas.itemcget(self.platoons_show[index[-1]][0], 'fill')
             self.platoons_show[index[-1]].append(
-                self.canvas.create_rectangle(init_x, init_y, init_x + config.CAR_LEN, init_y + config.CAR_WIDTH))
+                self.canvas.create_rectangle(init_x, init_y, init_x + config.CAR_LEN, init_y + config.CAR_WIDTH,
+                                             outline=new_color, fill=new_color))
 
     def create(self):
         lambda_ = 0.8
@@ -191,18 +205,20 @@ class Crossing(tk.Tk, object):
         return index
 
     def time_to_stop_line(self, phase, is_leader):
-        dir = signal.phase_to_dir(phase)
+        direction = signal.phase_to_dir(phase)
         for_return = []
         for i in range(len(self.platoons)):
-            if (self.platoons[i].start_dir == dir[0][0] and self.platoons[i].end_dir == dir[0][
-                1]) or (self.platoons[i].start_dir == dir[1][0] and self.platoons[i].end_dir ==
-                        dir[1][1]):
+            if (self.platoons[i].start_dir == direction[0][0] and self.platoons[i].end_dir == direction[0][
+                1]) or (self.platoons[i].start_dir == direction[1][0] and self.platoons[i].end_dir ==
+                        direction[1][1]):
                 leader_dis, tail_dis = self.platoons[i].dis_to_crossing()
                 if is_leader:
-                    for_return.append(leader_dis/10)
+                    for_return.append(car.cal_time(leader_dis, self.platoons[i].v[0]))
                 else:
-                    for_return.append(tail_dis/10)
-        for_return.sort()
+                    for_return.append(car.cal_time(tail_dis, self.platoons[i].v[-1]))
+        for i in range(1, len(for_return)):
+            if for_return[i] < for_return[i-1]:
+                for_return[i] = for_return[i-1] + config.SAFE_DIS_CACC/config.V_MAX
         return for_return
 
     def get_front_platoon(self, platoon_id, start_dir, end_dir):
@@ -238,7 +254,8 @@ class Crossing(tk.Tk, object):
                 if j == 2:
                     lane = 3
                 end_dir = config.Direction((i+lane) % 4)
-                self.canvas.itemconfigure(self.signal_show[i][j], fill=fill_color[self.signal.get_color(start_dir, end_dir)])
+                self.canvas.itemconfigure(self.signal_show[i][j],
+                                          fill=fill_color[self.signal.get_color(start_dir, end_dir)])
 
         for i in range(len(self.platoons)):
             self.platoons[i].add_time()
@@ -247,10 +264,16 @@ class Crossing(tk.Tk, object):
         i = 0
         while i < len(self.platoons):
             time_left = self.get_signal_time_left()
-            color = self.signal.get_color(self.platoons[i].start_dir, self.platoons[i].end_dir)
+            start_dir = self.platoons[i].start_dir
+            end_dir = self.platoons[i].end_dir
+            color = self.signal.get_color(start_dir, end_dir)
             about_to_green_ = self.signal.about_to_green(self.platoons[i].start_dir, self.platoons[i].end_dir)
-            follow_signal_result = self.platoons[i].follow_signal(color, time_left, about_to_green_)
-            front_platoon = self.get_front_platoon(self.platoons[i].id, self.platoons[i].start_dir, self.platoons[i].end_dir)
+            if end_dir.value - start_dir.value == 1 or end_dir.value - start_dir.value == -3:
+                follow_signal_result = self.platoons[i].follow_signal(color, 100, about_to_green_)
+            else:
+                follow_signal_result = self.platoons[i].follow_signal(color, time_left, about_to_green_)
+            front_platoon = self.get_front_platoon(self.platoons[i].id, self.platoons[i].start_dir,
+                                                   self.platoons[i].end_dir)
             self.platoons[i].follow_front_platoon(front_platoon, follow_signal_result)
             # update
             self.platoons[i].update()

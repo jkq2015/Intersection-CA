@@ -63,17 +63,17 @@ class Platoon:
         leader_dis, tail_dis = self.dis_to_crossing()
         if leader_dis > 100 or tail_dis < 0:
             return 0
-        leader_time = leader_dis / 10
-        tail_time = tail_dis / 10
+        leader_time = cal_time(leader_dis, self.v[0])
+        tail_time = cal_time(tail_dis, self.v[-1])
         if color == 0:
-            if tail_time < time_left:
+            if tail_time < time_left - 1:
                 return_acc = 0
             else:
                 return_acc = -self.v[0]**2/(2*abs(leader_dis - 3) + 0.1)
         elif color == 1:
             return_acc = -self.v[0]**2/(2*abs(leader_dis - 3) + 0.1)
         elif about_to_green:
-            if leader_time > time_left:
+            if leader_time > time_left + 1:
                 return_acc = 0
             else:
                 return_acc = -self.v[0] ** 2 / (2 * abs(leader_dis - 3) + 0.1)
@@ -99,7 +99,9 @@ class Platoon:
                 self.a[0] = 0
         else:
             follow_car_result = config.A_MAX
-            if front_platoon != -1 and arrive_crossing(front_platoon.x[-1],front_platoon.y[-1],front_platoon.start_dir):
+            delta_x = 0
+            if front_platoon != -1 and arrive_crossing(front_platoon.x[-1], front_platoon.y[-1],
+                                                       front_platoon.start_dir):
                 front_platoon = -1
             if front_platoon != -1:
                 delta_x = np.sqrt(np.power((self.x[0] - front_platoon.x[-1]), 2) +
@@ -183,6 +185,17 @@ def leave_crossing(x, y, end_dir):
     return result
 
 
+def cal_time(d_to_crossing, v):
+    if d_to_crossing < 0:
+        return 0
+    con_v = config.V_MAX
+    a = config.A_MAX
+    if con_v**2 - v**2 >= 2*a*d_to_crossing:
+        return 2*d_to_crossing/(v + con_v)
+    else:
+        return (con_v - v) / a + (d_to_crossing - (con_v ** 2 - v ** 2) / (2 * a)) / con_v
+
+
 def reach_des_(x, y, end_dir):
     if end_dir == config.Direction.EAST:
         result = x > config.CANVAS_E
@@ -256,23 +269,23 @@ def cal_theta(start_dir, end_dir, x, y):
         if start_dir == config.Direction.EAST and end_dir == config.Direction.SOUTH:
             dx = config.left_side - x
             dy = config.right_side - y
-            theta = np.arctan2(-dx/2, dy/(config.CAR_LEN + 2))
+            theta = np.arctan2(-dx, dy/(config.CAR_LEN + 2))
         elif start_dir == config.Direction.NORTH and end_dir == config.Direction.WEST:
             dx = config.left_side - x
             dy = config.right_side - y
-            theta = np.arctan2(dx/(3*config.LANE_WIDTH + 2), -dy/(4*config.LANE_WIDTH + 2 + config.CAR_LEN))
+            theta = np.arctan2(dx/(3*config.LANE_WIDTH + 2), -dy/(3*config.LANE_WIDTH + 2 + config.CAR_LEN))
         elif start_dir == config.Direction.WEST and end_dir == config.Direction.SOUTH:
             dx = config.right_side - x
             dy = config.right_side - y
-            theta = np.arctan2(dx/(4*config.LANE_WIDTH + 2 + config.CAR_LEN), -dy/(3*config.LANE_WIDTH + 2 + config.CAR_LEN))
+            theta = np.arctan2(dx, -dy)
         elif start_dir == config.Direction.NORTH and end_dir == config.Direction.EAST:
             dx = config.right_side - x
             dy = config.right_side - y
-            theta = np.arctan2(-dx, dy)
+            theta = np.arctan2(-dx/2, dy)
         elif start_dir == config.Direction.EAST and end_dir == config.Direction.NORTH:
             dx = config.left_side - x
             dy = config.left_side - y
-            theta = np.arctan2(dx/(4*config.LANE_WIDTH + 2), -dy/(3*config.LANE_WIDTH + 2))
+            theta = np.arctan2(dx, -dy)
         elif start_dir == config.Direction.SOUTH and end_dir == config.Direction.WEST:
             dx = config.left_side - x
             dy = config.left_side - y
@@ -284,7 +297,7 @@ def cal_theta(start_dir, end_dir, x, y):
         else:
             dx = config.right_side - x
             dy = config.left_side - y
-            theta = np.arctan2(dx/(3*config.LANE_WIDTH + config.CAR_LEN + 2), -dy/(4*config.LANE_WIDTH + 2))
+            theta = np.arctan2(dx/(3*config.LANE_WIDTH + config.CAR_LEN + 4), -dy/(3*config.LANE_WIDTH))
     return theta
 
 
