@@ -1,0 +1,4 @@
+# This line is ignored since it's a comment
+SUMO_HOME: /usr/share/sumo
+PYTHONPATH: /usr/share/sumo/tools
+DISPLAY: "localhost:10.0"
