@@ -1,0 +1,10 @@
+
+*.pyc
+.vs/slnx.sqlite
+.vs/SUMOIntersectionResearch/v15/.suo
+.vs/VSWorkspaceState.json
+SUMOIntersectionResearch.pyproj
+SUMOIntersectionResearch.pyproj.user
+SUMOIntersectionResearch.sln
+output/emissionsOutput.xml
+.vs/SUMOIntersectionResearch/v16/.suo
