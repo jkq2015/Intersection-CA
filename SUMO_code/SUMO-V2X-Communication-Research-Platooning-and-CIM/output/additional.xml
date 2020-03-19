@@ -1,3 +1,15 @@
 <additional>
-  <edgeData id="emissions" type="emissions" file="emissionsOutput.xml"/>
+<!--for emissions-->
+<!--  <edgeData id="emissions" type="emissions" file="emissionsOutput.xml"/>-->
+
+<!-- for virtual loops-->
+  <inductionLoop id="VL_north2J" lane="-gneE12_0" pos="-40" freq="100" file="out_virtualLoop.xml"/>
+  <inductionLoop id="VL_J2north" lane="gneE12_0" pos="40" freq="100" file="out_virtualLoop.xml"/>
+  <inductionLoop id="VL_south2J" lane="-gneE11_0" pos="-40" freq="100" file="out_virtualLoop.xml"/>
+  <inductionLoop id="VL_J2south" lane="gneE11_0" pos="40" freq="100" file="out_virtualLoop.xml"/>
+  <inductionLoop id="VL_west2J" lane="gneE9_0" pos="-40" freq="100" file="out_virtualLoop.xml"/>
+  <inductionLoop id="VL_J2west" lane="-gneE9_0" pos="40" freq="100" file="out_virtualLoop.xml"/>
+  <inductionLoop id="VL_east2J" lane="-gneE19_0" pos="-40" freq="100" file="out_virtualLoop.xml"/>
+  <inductionLoop id="VL_J2east" lane="gneE19_0" pos="40" freq="100" file="out_virtualLoop.xml"/>
+
 </additional>

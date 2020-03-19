@@ -1,6 +1,7 @@
 import logging
 import traci
 import random
+import src.BaseDefine as BaseDefine
 
 class Platoon():
 
@@ -29,10 +30,14 @@ class Platoon():
 
     def addVehicle(self, vehicle):
         """Adds a single vehicle to this platoon"""
-        self._vehicles.append(vehicle)
-        self.startBehaviour([vehicle, ])
-        logging.info("Adding %s to platoon %s, New length: %s",
-                     vehicle.getName(), self.getID(), len(self._vehicles))
+        if len(self._vehicles) <= BaseDefine.PlatoonMaxVehicleNum:
+            self._vehicles.append(vehicle)
+            self.startBehaviour([vehicle, ])
+            logging.info("Adding %s to platoon %s, New length: %s", vehicle.getName(), self.getID(),
+                         len(self._vehicles))
+        else:
+            logging.info("Fail: Adding %s to platoon %s, because the platoon exceeds maximum vehicle numbers",
+                         vehicle.getName(), self.getID(), )
 
     def canMerge(self):
         """
