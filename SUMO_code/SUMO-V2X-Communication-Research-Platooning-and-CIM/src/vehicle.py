@@ -27,12 +27,15 @@ class Vehicle():
         return traci.vehicle.getLaneIndex(self.getName())
 
     def getLanePosition(self):
+        # The position of the vehicle along the lane measured in m.
         return traci.vehicle.getLanePosition(self.getName())
 
     def getLanePositionFromFront(self):
         return traci.lane.getLength(self.getLane()) - self.getLanePosition()
 
     def getLeader(self):
+        '''getLeader(string, double) -> (string, double)'''
+        # Return the leading vehicle id together with the distance
         return traci.vehicle.getLeader(self.getName(), 20)
 
     def getLength(self):
@@ -48,6 +51,7 @@ class Vehicle():
         return self._route[traci.vehicle.getRouteIndex(self.getName()):]
 
     def getRoute(self):
+        # getRoute(string) -> list(string)
         return self._route
 
     def getSpeed(self):
@@ -63,6 +67,7 @@ class Vehicle():
         self._setAttr("setImperfection", imperfection)
 
     def setMinGap(self, minGap):
+        # Sets the offset (gap to front vehicle if halting) for this vehicle.
         self._setAttr("setMinGap", minGap)
 
     def setTargetLane(self, lane):
@@ -72,12 +77,20 @@ class Vehicle():
         self._setAttr("setTau", tau)
 
     def setSpeed(self, speed):
+        # Sets the speed in m/s for the named vehicle within the last step.
+        # Calling with speed=-1 hands the vehicle control back to SUMO.
         self._setAttr("setSpeed", speed)
 
     def setSpeedMode(self, speedMode):
+        # bit0: Regard safe speed
+        # bit1: Regard maximum acceleration
+        # bit2: Regard maximum deceleration
+        # bit3: Regard right of way at intersections
+        # bit4: Brake hard to avoid passing a red light
         self._setAttr("setSpeedMode", speedMode)
 
     def setSpeedFactor(self, speedFactor):
+        # speedFactor: The vehicles expected multiplicator for lane speed limits
         self._setAttr("setSpeedFactor", speedFactor)
 
     def _setAttr(self, attr, arg):

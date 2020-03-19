@@ -128,6 +128,7 @@ class Platoon():
             platoon._disbandReason = "Merged"
             for vehicle in platoon.getAllVehicles():
                 self.addVehicle(vehicle)
+            logging.info("== platoon %s", platoon.getID() ,' merges into platoon %s', self.getID())
         self._eligibleForMerging = False
         platoon._eligibleForMerging = False
 
@@ -153,9 +154,9 @@ class Platoon():
         """
         self._targetSpeed = speed
 
-    def setGap(self, gap):
+    def setTau(self, gap):
         """
-        Set the gap between vehicles in the platoon
+        Set the gap (tau)  between vehicles in the platoon
         """
         for veh in self.getAllVehicles():
             veh.setTau(gap)

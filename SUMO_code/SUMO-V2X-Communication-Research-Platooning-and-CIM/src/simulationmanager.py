@@ -60,6 +60,7 @@ class SimulationManager():
                     return possiblePlatoon[0]
 
     def handleSimulationStep(self):
+        # Returns a list of all objects in the network.
         allVehicles = traci.vehicle.getIDList()
         # Check mark vehicles as in-active if they are outside the map
         stoppedCount = dict()
@@ -67,7 +68,7 @@ class SimulationManager():
             if v.getName() not in allVehicles:
                 v.setInActive()
             # Get information concerning the number of vehicles queueing on each lane
-            if v.isActive() and v.getSpeed() == 0:
+            if v.isActive() and abs(v.getSpeed()) <= 1e-6:
                 lane = v.getEdge()
                 if lane in stoppedCount:
                     stoppedCount[lane] = stoppedCount[lane] + 1

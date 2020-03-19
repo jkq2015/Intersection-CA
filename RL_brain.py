@@ -37,7 +37,9 @@ class DDPG(object):
     def __init__(self, a_dim, s_dim, a_bound, train):
         self.memory = np.zeros((MEMORY_CAPACITY, s_dim * 2 + a_dim + 1), dtype=np.float32)
         self.pointer = 0
-        self.sess = tf.Session()
+        config = tf.ConfigProto()
+        config.gpu_options.allow_growth = True  # 使显存从小向大增长
+        self.sess = tf.Session(config=config)
 
         self.a_dim, self.s_dim, self.a_bound = a_dim, s_dim, a_bound,
         self.S = tf.placeholder(tf.float32, [None, s_dim], 's')
@@ -66,7 +68,7 @@ class DDPG(object):
             self.ctrain = tf.train.AdamOptimizer(LR_C).minimize(td_error, var_list=c_params)
 
         self.saver = tf.train.Saver()
-        self.path = './Data'
+        self.path = './Model'
         if train:
             self.sess.run(tf.global_variables_initializer())
         else:
@@ -115,4 +117,4 @@ class DDPG(object):
         os.mkdir(self.path)
         ckpt_path = os.path.join(self.path, 'DDPG.ckpt')
         save_path = self.saver.save(self.sess, ckpt_path, write_meta_graph=True)
-        print("\nSave Model %s\n" % save_path)
+        print("\n========= Save Model %s\n" % save_path)
