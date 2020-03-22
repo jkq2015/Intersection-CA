@@ -9,6 +9,7 @@ def flatten(l):
 def setUpSimulation(configFile, trafficScale = 1):
     # Check SUMO has been set up properly
     sumoBinary = checkBinary("sumo-gui")
+    # sumoBinary = checkBinary("sumo")
 
     # Set up logger
     logging.basicConfig(format='%(asctime)s %(message)s')

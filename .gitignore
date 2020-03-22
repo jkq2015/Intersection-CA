@@ -51,3 +51,5 @@ __pycache__/
 # from SUMO-V2X-Communication-Research-Platooning-and-CIM project
 SUMO_code/SUMO-V2X-Communication-Research-Platooning-and-CIM project/*.pyc
 SUMO_code/SUMO-V2X-Communication-Research-Platooning-and-CIM project/output/emissionsOutput.xml
+/utility/.ipynb_checkpoints/
+/SUMO_code/SUMO-V2X-Communication-Research-Platooning-and-CIM/output/
