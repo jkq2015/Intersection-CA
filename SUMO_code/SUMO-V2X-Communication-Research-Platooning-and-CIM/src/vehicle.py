@@ -1,4 +1,5 @@
 import traci
+import src.BaseDefine as BaseDefine
 
 class Vehicle():
     
@@ -10,9 +11,19 @@ class Vehicle():
         self._name = vehicle
         self._route = traci.vehicle.getRoute(vehicle)
         self._previouslySetValues = dict()
+        self._maxDecel = traci.vehicle.getDecel(vehicle)
+        self._maxAccel = traci.vehicle.getAccel(vehicle)
 
     def getAcceleration(self):
-        return self._acceleration
+        # return self._acceleration
+        # modify fixed value to lookup-each-call
+        return traci.vehicle.getAcceleration(self.getName())
+
+    def getMaxDeceleraion(self):
+        return self._maxDecel
+
+    def getMaxAcceleration(self):
+        return self._maxAccel
 
     def isActive(self):
         return self._active
@@ -36,7 +47,7 @@ class Vehicle():
     def getLeader(self):
         '''getLeader(string, double) -> (string, double)'''
         # Return the leading vehicle id together with the distance
-        return traci.vehicle.getLeader(self.getName(), 20)
+        return traci.vehicle.getLeader(self.getName(), BaseDefine.PreVehicleDetectionRange)
 
     def getLength(self):
         return self._length
@@ -79,7 +90,14 @@ class Vehicle():
     def setSpeed(self, speed):
         # Sets the speed in m/s for the named vehicle within the last step.
         # Calling with speed=-1 hands the vehicle control back to SUMO.
-        self._setAttr("setSpeed", speed)
+        if speed == -1:
+            self._setAttr("setSpeed", speed)
+        else:
+            lastSpeed = self.getSpeed()
+            lb = lastSpeed - self._maxDecel*BaseDefine.StepLength
+            ub = lastSpeed + self._maxAccel*BaseDefine.StepLength
+            newSpeed = min(max(speed, lb), ub)
+            self._setAttr("setSpeed", newSpeed)
 
     def setSpeedMode(self, speedMode):
         # bit0: Regard safe speed

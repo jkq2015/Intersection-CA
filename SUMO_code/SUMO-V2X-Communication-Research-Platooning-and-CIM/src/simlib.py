@@ -1,12 +1,13 @@
 import logging
 import traci
+import src.BaseDefine as BaseDefine
 from sumolib import checkBinary
 
 def flatten(l):
     # A basic function to flatten a list
     return [item for sublist in l for item in sublist]
 
-def setUpSimulation(configFile, trafficScale = 1):
+def setUpSimulation(configFile, trafficScale = 1, platoonFlag=False):
     # Check SUMO has been set up properly
     sumoBinary = checkBinary("sumo-gui")
     # sumoBinary = checkBinary("sumo")
@@ -16,7 +17,16 @@ def setUpSimulation(configFile, trafficScale = 1):
     root = logging.getLogger()
     root.setLevel(logging.DEBUG)
 
+    # Set up output file name
+    if platoonFlag:
+        additionalFilesPath = '../output/additional_platoon.xml'
+        tripinfoFilesPath = '../output/tripinfo_platoon.xml'
+    else:
+        additionalFilesPath = '../output/additional_noPlatoon.xml'
+        tripinfoFilesPath = '../output/tripinfo_noPlatoon.xml'
+
     # Start Simulation and step through
-    traci.start([sumoBinary, "-c", configFile, "--step-length", "0.1", "--collision.action", "none", "--start",
-                 "--additional-files", "../output/additional.xml", "--duration-log.statistics",
-                 "--tripinfo-output", "../output/tripinfo.xml", "--scale", str(trafficScale)])
+    traci.start(
+        [sumoBinary, "-c", configFile, "--step-length", str(BaseDefine.StepLength), "--collision.action", "none",
+         "--start", "--additional-files", additionalFilesPath, "--duration-log.statistics", "--tripinfo-output",
+         tripinfoFilesPath, "--scale", str(trafficScale)])
